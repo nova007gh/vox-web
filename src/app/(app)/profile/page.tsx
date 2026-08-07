@@ -207,6 +207,11 @@ export default function ProfilePage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
+  // Cover/banner upload
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+
   const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentUser) return;
@@ -226,6 +231,26 @@ export default function ProfilePage() {
       showToast("Failed to upload image");
     }
     setUploadingAvatar(false);
+  };
+
+  const handleCoverSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+    setUploadingCover(true);
+    try {
+      const compressed = await compressImage(file, 1200, 0.8);
+      const fileId = await storeFile(compressed);
+      const url = await getFileURL(fileId);
+      if (url) {
+        setCoverPreview(url);
+        updateProfile({ cover: url });
+        showToast("Banner updated!");
+      }
+    } catch (err) {
+      console.error("Cover upload error:", err);
+      showToast("Failed to upload banner");
+    }
+    setUploadingCover(false);
   };
 
   // Dynamic content tabs from current user's posts
@@ -346,7 +371,7 @@ export default function ProfilePage() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6 }} className="relative">
         <div className="h-36 sm:h-44 md:h-56 relative overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={currentUser?.cover || "https://images.unsplash.com/photo-1770445612539-1a49772a1c3f?fm=jpg&q=60&w=1200&h=400&auto=format&fit=crop"} alt="Profile cover image" className="absolute inset-0 w-full h-full object-cover" />
+          <img src={coverPreview || currentUser?.cover || "https://images.unsplash.com/photo-1770445612539-1a49772a1c3f?fm=jpg&q=60&w=1200&h=400&auto=format&fit=crop"} alt="Profile cover image" className="absolute inset-0 w-full h-full object-cover" />
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-vox-purple/20 rounded-full blur-[120px] animate-pulse-glow" />
           <div className="absolute top-10 right-1/4 w-72 h-72 bg-vox-pink/15 rounded-full blur-[100px] animate-pulse-glow" style={{ animationDelay: "1.5s" }} />
           <div className="absolute bottom-0 left-1/2 w-64 h-64 bg-vox-orange/10 rounded-full blur-[80px] animate-pulse-glow" style={{ animationDelay: "3s" }} />
@@ -361,6 +386,20 @@ export default function ProfilePage() {
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
+          {/* Change cover button */}
+          <button
+            onClick={() => coverInputRef.current?.click()}
+            disabled={uploadingCover}
+            className="absolute w-9 h-9 rounded-full glass touch-feedback flex items-center justify-center text-white z-10 disabled:opacity-60"
+            style={{ top: "var(--safe-top)", right: "52px" }}
+            aria-label="Change banner"
+          >
+            {uploadingCover ? (
+              <div className="w-4 h-4 rounded-full border border-white/30 border-t-white animate-spin" />
+            ) : (
+              <Camera className="w-4 h-4" />
+            )}
+          </button>
           {/* Settings/Share button overlay */}
           <button
             onClick={() => setShowMenu(!showMenu)}
@@ -370,6 +409,13 @@ export default function ProfilePage() {
           >
             <Settings className="w-4 h-4" />
           </button>
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleCoverSelect}
+            className="hidden"
+          />
         </div>
 
         <div className="relative max-w-3xl mx-auto px-4 -mt-12 sm:-mt-16 pb-4">

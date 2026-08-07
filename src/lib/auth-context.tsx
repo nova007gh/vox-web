@@ -130,7 +130,7 @@ function resolveAccount(payload: SessionPayload): Account | null {
     }
     return base;
   }
-  return getSignupUsers().find((a) => a.email === payload.email) ?? null;
+  return getSignupUsers().find((a) => a.email.toLowerCase() === payload.email.toLowerCase()) ?? null;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -236,7 +236,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isPrivate: false,
       isSeller: false,
       posts: [],
-      email: data.email.trim(),
+      email: normalized,
       password: data.password,
     };
 
@@ -256,7 +256,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const updated = { ...currentUser, ...updates };
 
     // If it's a seed account, persist overrides in localStorage
-    const isSeed = accounts.some((a) => a.email === currentUser.email);
+    const isSeed = accounts.some((a) => a.email.toLowerCase() === currentUser.email.toLowerCase());
     if (isSeed) {
       const overridesKey = "voxel_profile_overrides";
       try {
@@ -267,11 +267,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         /* ignore */
       }
     } else {
-      // Update in the signup users list
+      // Update in the signup users list - preserve password!
       const users = getSignupUsers();
-      const idx = users.findIndex((u) => u.email === currentUser.email);
+      const idx = users.findIndex((u) => u.email.toLowerCase() === currentUser.email.toLowerCase());
       if (idx >= 0) {
-        users[idx] = updated;
+        // Merge with existing user to preserve fields like password
+        users[idx] = { ...users[idx], ...updates };
         setSignupUsers(users);
       }
     }
