@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import FeedPosts from "../FeedPosts";
 import {
   Search,
   SlidersHorizontal,
@@ -474,6 +475,9 @@ export default function ExplorePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
           >
+            {/* Real-time posts from all users */}
+            <FeedPosts />
+
             <SectionHeader icon={Flame} title="Trending Now" />
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-3 sm:-mx-4 px-3 sm:px-4">
               {trends.map((trend, i) => (

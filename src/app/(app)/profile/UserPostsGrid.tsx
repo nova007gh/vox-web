@@ -22,11 +22,55 @@ import {
   incrementView,
   deletePost,
   downloadFile,
+  getFileURL,
   timeAgo,
   formatCount,
   type Post,
 } from "@/lib/firebase-store";
 import { useAuth } from "@/lib/auth-context";
+
+/** Video player that loads video from IndexedDB (local) with thumbnail fallback */
+function VideoPlayer({ post }: { post: Post }) {
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const mediaId = post.mediaIds.find((id) => id.startsWith("idb_") || !id.startsWith("file_"));
+    if (mediaId) {
+      getFileURL(mediaId).then((url) => {
+        if (url) setVideoUrl(url);
+        setLoading(false);
+      }).catch(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [post.mediaIds]);
+
+  if (loading) {
+    return (
+      <div className="w-full aspect-[9/16] max-h-[400px] flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-vox-purple/30 border-t-vox-purple animate-spin" />
+      </div>
+    );
+  }
+
+  if (videoUrl) {
+    return <video src={videoUrl} controls autoPlay className="w-full max-h-[400px] object-contain" />;
+  }
+
+  return (
+    <div className="relative w-full max-h-[400px]">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={post.thumbnailUrl || post.mediaUrls?.[0] || ""} alt={post.caption} className="w-full max-h-[400px] object-contain" />
+      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+        <div className="text-center">
+          <Play className="w-12 h-12 text-white/80 mx-auto mb-2" />
+          <p className="text-xs text-white/60">Video available on original device</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface UserPostsGridProps {
   username: string;
@@ -255,7 +299,7 @@ export default function UserPostsGrid({ username, emptyMessage = "No posts yet" 
               <div className="relative bg-black/40">
                 {getMediaUrl(selectedPost) ? (
                   selectedPost.type === "video" ? (
-                    <video src={getMediaUrl(selectedPost)} controls autoPlay className="w-full max-h-[400px] object-contain" />
+                    <VideoPlayer post={selectedPost} />
                   ) : (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={getMediaUrl(selectedPost)} alt={selectedPost.caption} className="w-full max-h-[400px] object-contain" />

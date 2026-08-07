@@ -238,15 +238,19 @@ export default function CreatePage() {
           mediaIds.push(id);
           mediaUrls.push(url);
         } else if (file.type.startsWith("video/")) {
-          const { url, id } = await uploadFile(file);
-          mediaIds.push(id);
-          mediaUrls.push(url);
+          // For videos: store thumbnail in Firestore (small), video in IndexedDB (local)
           const thumb = await generateVideoThumbnail(file);
           if (thumb) {
-            const { url: thumbUrl, id: thumbId } = await uploadFile(thumb);
+            const compressedThumb = await compressImage(thumb, 480, 0.7);
+            const { url: thumbUrl, id: thumbId } = await uploadFile(compressedThumb);
             thumbnailId = thumbId;
             thumbnailUrl = thumbUrl;
+            mediaUrls.push(thumbUrl); // Use thumbnail as media URL for feed display
           }
+          // Store video locally in IndexedDB for playback on same device
+          const { storeFile } = await import("@/lib/content-store");
+          const videoId = await storeFile(file);
+          mediaIds.push(videoId);
         }
       }
 
