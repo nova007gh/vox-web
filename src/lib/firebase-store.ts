@@ -23,15 +23,8 @@ import {
   serverTimestamp,
   type Unsubscribe,
 } from "firebase/firestore";
+import { db, isFirebaseConfigured } from "./firebase";
 import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-} from "firebase/storage";
-import { db, storage, isFirebaseConfigured } from "./firebase";
-import {
-  storeFile as idbStoreFile,
   getFileURL as idbGetFileURL,
   deleteFile as idbDeleteFile,
   compressImage,
@@ -340,39 +333,35 @@ async function getPostById(postId: string): Promise<Record<string, unknown> | nu
 
 /* ─────────────── FILE STORAGE ─────────────── */
 
-/** Upload a file and return its URL */
-export async function uploadFile(file: Blob, path?: string): Promise<{ url: string; id: string }> {
-  if (USE_FIREBASE && storage) {
-    const fileId = path || `uploads/${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    const storageRef = ref(storage, fileId);
-    await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(storageRef);
-    return { url, id: fileId };
-  }
-  // Fallback to IndexedDB
-  const id = await idbStoreFile(file);
-  const url = await idbGetFileURL(id);
-  return { url: url || "", id };
+/** Convert a Blob to a base64 data URL */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
-/** Get file URL (for IndexedDB fallback) */
+/** Upload a file and return its URL (base64 data URL stored in Firestore) */
+export async function uploadFile(file: Blob, path?: string): Promise<{ url: string; id: string }> {
+  // Convert to base64 - works with Firestore without needing Storage
+  const base64Url = await blobToBase64(file);
+  const id = path || `file_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  return { url: base64Url, id };
+}
+
+/** Get file URL - returns the base64 URL directly (stored in Firestore) */
 export async function getFileURL(id: string): Promise<string | null> {
-  if (USE_FIREBASE && storage) {
-    try {
-      return await getDownloadURL(ref(storage, id));
-    } catch {
-      return null;
-    }
-  }
+  // With base64 approach, URLs are stored directly in Firestore documents
+  // This is only used for IndexedDB fallback
   return idbGetFileURL(id);
 }
 
 /** Delete a file */
 export async function deleteFile(id: string): Promise<void> {
-  if (USE_FIREBASE && storage) {
-    try { await deleteObject(ref(storage, id)); } catch { /* ignore */ }
-    return;
-  }
+  // With base64 approach, files are stored in Firestore documents
+  // Deleting the document removes the file data
   idbDeleteFile(id);
 }
 

@@ -233,7 +233,7 @@ export default function CreatePage() {
 
       for (const file of selectedFiles) {
         if (file.type.startsWith("image/")) {
-          const compressed = await compressImage(file, 1080, 0.8);
+          const compressed = await compressImage(file, 720, 0.7);
           const { url, id } = await uploadFile(compressed);
           mediaIds.push(id);
           mediaUrls.push(url);
