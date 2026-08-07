@@ -6,7 +6,8 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import UserPostsGrid from "./UserPostsGrid";
-import { storeFile, getFileURL, compressImage } from "@/lib/content-store";
+import { compressImage } from "@/lib/content-store";
+import { uploadFile } from "@/lib/firebase-store";
 import {
   BadgeCheck,
   Flame,
@@ -218,14 +219,10 @@ export default function ProfilePage() {
     setUploadingAvatar(true);
     try {
       const compressed = await compressImage(file, 400, 0.85);
-      const fileId = await storeFile(compressed);
-      const url = await getFileURL(fileId);
-      if (url) {
-        setAvatarPreview(url);
-        // Update immediately in auth context
-        updateProfile({ avatar: url });
-        showToast("Profile picture updated!");
-      }
+      const { url } = await uploadFile(compressed, `avatars/${currentUser.username}_${Date.now()}.jpg`);
+      setAvatarPreview(url);
+      updateProfile({ avatar: url });
+      showToast("Profile picture updated!");
     } catch (err) {
       console.error("Avatar upload error:", err);
       showToast("Failed to upload image");
@@ -239,13 +236,10 @@ export default function ProfilePage() {
     setUploadingCover(true);
     try {
       const compressed = await compressImage(file, 1200, 0.8);
-      const fileId = await storeFile(compressed);
-      const url = await getFileURL(fileId);
-      if (url) {
-        setCoverPreview(url);
-        updateProfile({ cover: url });
-        showToast("Banner updated!");
-      }
+      const { url } = await uploadFile(compressed, `covers/${currentUser.username}_${Date.now()}.jpg`);
+      setCoverPreview(url);
+      updateProfile({ cover: url });
+      showToast("Banner updated!");
     } catch (err) {
       console.error("Cover upload error:", err);
       showToast("Failed to upload banner");

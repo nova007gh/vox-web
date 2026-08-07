@@ -40,6 +40,8 @@ import {
   Eye,
   Check,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { sendMessage, subscribeToMessages, uploadFile, compressImage, type ChatMessage } from "@/lib/firebase-store";
 
 /* ───────────────────────────── TYPES ───────────────────────────── */
 
@@ -350,6 +352,7 @@ const mediaGradients = [
 
 export default function MessagesPage() {
   const router = useRouter();
+  const { currentUser } = useAuth();
   const [chatsList, setChatsList] = useState<Chat[]>(initialChats);
   const [selectedChat, setSelectedChat] = useState<number>(1);
   const [messageInput, setMessageInput] = useState("");
@@ -359,35 +362,44 @@ export default function MessagesPage() {
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [playingVoice, setPlayingVoice] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>(conversationMessages);
+  const [realtimeMessages, setRealtimeMessages] = useState<ChatMessage[]>([]);
 
-  // Load saved messages for the selected chat from localStorage
+  // Get the active chat's username
+  const activeChat = chatsList.find((c) => c.id === selectedChat) || chatsList[0];
+  const activeChatUsername = activeChat?.username || activeChat?.handle?.replace("@", "") || "";
+
+  // Subscribe to real-time messages from Firebase
   useEffect(() => {
-    try {
-      const savedKey = `voxel_messages_${selectedChat}`;
-      const saved = localStorage.getItem(savedKey);
-      if (saved) {
-        setMessages(JSON.parse(saved));
-      } else {
-        // Find the default messages for this chat
-        const chat = initialChats.find((c) => c.id === selectedChat);
-        if (chat) {
-          // Use the conversation messages as default
-          setMessages(conversationMessages);
-        }
-      }
-    } catch {
+    if (!currentUser || !activeChatUsername) {
+      setRealtimeMessages([]);
+      return;
+    }
+    const unsubscribe = subscribeToMessages(
+      currentUser.username,
+      activeChatUsername,
+      (msgs) => {
+        setRealtimeMessages(msgs);
+      },
+    );
+    return () => unsubscribe();
+  }, [currentUser, activeChatUsername]);
+
+  // Merge real-time messages with local messages
+  useEffect(() => {
+    if (realtimeMessages.length > 0) {
+      const mapped: Message[] = realtimeMessages.map((m) => ({
+        id: Date.now() + Math.random(),
+        sender: m.senderUsername === currentUser?.username ? "me" : "them",
+        type: m.type === "image" ? "image" : "text",
+        content: m.content,
+        time: new Date(m.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
+        read: m.read,
+      }));
+      setMessages(mapped);
+    } else if (!activeChat) {
       setMessages(conversationMessages);
     }
-  }, [selectedChat]);
-
-  // Save messages to localStorage whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem(`voxel_messages_${selectedChat}`, JSON.stringify(messages));
-    } catch {
-      /* ignore */
-    }
-  }, [messages, selectedChat]);
+  }, [realtimeMessages, currentUser, activeChat]);
   const [callState, setCallState] = useState<{ active: boolean; type: "voice" | "video"; duration: number }>({ active: false, type: "voice", duration: 0 });
   const [callMuted, setCallMuted] = useState(false);
   const [callSpeaker, setCallSpeaker] = useState(false);
@@ -409,10 +421,8 @@ export default function MessagesPage() {
   const [searchInChat, setSearchInChat] = useState(false);
   const [searchInChatQuery, setSearchInChatQuery] = useState("");
   const [toast, setToast] = useState<string | null>(null);
-  const [isTyping, setIsTyping] = useState(false);
+  const [isTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const activeChat = chatsList.find((c) => c.id === selectedChat) || chatsList[0];
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -545,32 +555,36 @@ export default function MessagesPage() {
     return matchesSearch;
   });
 
-  const handleSend = () => {
-    if (!messageInput.trim()) return;
+  const handleSend = async () => {
+    if (!messageInput.trim() || !currentUser) return;
+    const text = messageInput.trim();
+    const time = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+
+    // Optimistic update
     const newMsg: Message = {
-      id: messages.length + 1,
+      id: Date.now(),
       sender: "me",
       type: "text",
-      content: messageInput.trim(),
-      time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
+      content: text,
+      time,
       read: false,
     };
-    setMessages([...messages, newMsg]);
+    setMessages((prev) => [...prev, newMsg]);
     setMessageInput("");
-    setIsTyping(true);
-    // Simulate reply
-    setTimeout(() => {
-      setIsTyping(false);
-      const reply: Message = {
-        id: messages.length + 2,
-        sender: "them",
+
+    // Send via Firebase (or localStorage fallback)
+    try {
+      await sendMessage({
+        senderUsername: currentUser.username,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.avatar,
+        receiverUsername: activeChatUsername,
+        content: text,
         type: "text",
-        content: "Got it! 👍",
-        time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
-        read: true,
-      };
-      setMessages((prev) => [...prev, reply]);
-    }, 2000);
+      });
+    } catch (err) {
+      console.error("Send error:", err);
+    }
   };
 
   const handleSendGift = (gift: { emoji: string; name: string; cost: number }) => {
@@ -627,20 +641,40 @@ export default function MessagesPage() {
 
   const handleMsgPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    // Store the image and get a URL
-    const url = URL.createObjectURL(file);
-    const newMsg: Message = {
-      id: messages.length + 1,
+    if (!file || !currentUser) return;
+
+    // Optimistic preview
+    const previewUrl = URL.createObjectURL(file);
+    const time = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    const tempMsg: Message = {
+      id: Date.now(),
       sender: "me",
       type: "image",
-      content: url,
-      time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
+      content: previewUrl,
+      time,
       read: false,
     };
-    setMessages([...messages, newMsg]);
+    setMessages((prev) => [...prev, tempMsg]);
     showToast("Photo sent");
-    // Clear the input
+
+    try {
+      const compressed = await compressImage(file, 1080, 0.8);
+      const { url } = await uploadFile(compressed, `messages/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
+      await sendMessage({
+        senderUsername: currentUser.username,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.avatar,
+        receiverUsername: activeChatUsername,
+        content: url,
+        type: "image",
+      });
+      // Replace preview with real URL
+      setMessages((prev) => prev.map((m) => m.id === tempMsg.id ? { ...m, content: url } : m));
+      URL.revokeObjectURL(previewUrl);
+    } catch (err) {
+      console.error("Photo send error:", err);
+      showToast("Failed to send photo");
+    }
     e.target.value = "";
   };
 

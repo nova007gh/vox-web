@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
@@ -14,8 +14,7 @@ import {
   Send,
 } from "lucide-react";
 import {
-  getFeedPosts,
-  getFileURL,
+  subscribeToFeedPosts,
   toggleLike,
   toggleSave,
   addComment,
@@ -25,69 +24,50 @@ import {
   timeAgo,
   formatCount,
   type Post,
-} from "@/lib/content-store";
+} from "@/lib/firebase-store";
 import { useAuth } from "@/lib/auth-context";
 
 export default function FeedPosts() {
   const { currentUser } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
-  const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [commentText, setCommentText] = useState("");
   const [loaded, setLoaded] = useState(false);
 
-  const loadPosts = useCallback(() => {
-    setPosts(getFeedPosts());
-    setLoaded(true);
+  // Real-time subscription to feed posts
+  useEffect(() => {
+    const unsubscribe = subscribeToFeedPosts((feedPosts) => {
+      setPosts(feedPosts);
+      setLoaded(true);
+    });
+    return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    loadPosts();
-  }, [loadPosts]);
-
-  // Load media URLs
-  useEffect(() => {
-    let cancelled = false;
-    const urls: Record<string, string> = {};
-    const allMediaIds = posts.flatMap((p) => [
-      ...(p.thumbnailId ? [p.thumbnailId] : []),
-      ...p.mediaIds,
-    ]);
-    Promise.all(
-      allMediaIds.map(async (id) => {
-        const url = await getFileURL(id);
-        if (url) urls[id] = url;
-      }),
-    ).then(() => {
-      if (!cancelled) setMediaUrls(urls);
-    });
-    return () => {
-      cancelled = true;
-      Object.values(urls).forEach((u) => URL.revokeObjectURL(u));
-    };
-  }, [posts]);
-
-  const handleLike = (postId: string) => {
-    toggleLike(postId);
-    loadPosts();
+  const handleLike = async (postId: string) => {
+    await toggleLike(postId);
     if (selectedPost?.id === postId) {
-      setSelectedPost((prev) => prev ? { ...prev, likedByMe: !prev.likedByMe, likes: prev.likedByMe ? prev.likes - 1 : prev.likes + 1 } : null);
+      setSelectedPost((prev) => prev ? {
+        ...prev,
+        likedByMe: !prev.likedByMe,
+        likes: prev.likedByMe ? prev.likes - 1 : prev.likes + 1,
+      } : null);
     }
   };
 
-  const handleSave = (postId: string) => {
-    toggleSave(postId);
-    loadPosts();
+  const handleSave = async (postId: string) => {
+    await toggleSave(postId);
+    if (selectedPost?.id === postId) {
+      setSelectedPost((prev) => prev ? { ...prev, savedByMe: !prev.savedByMe } : null);
+    }
   };
 
-  const handleShare = (postId: string) => {
-    incrementShare(postId);
+  const handleShare = async (postId: string) => {
+    await incrementShare(postId);
     if (navigator.share) {
       navigator.share({ title: "VOXel Post", text: "Check out this post!", url: window.location.href }).catch(() => {});
     } else {
       navigator.clipboard?.writeText(window.location.href);
     }
-    loadPosts();
   };
 
   const handleDownload = async (postId: string, mediaId: string) => {
@@ -96,34 +76,44 @@ export default function FeedPosts() {
     await downloadFile(mediaId, `voxel_${postId}.${ext}`);
   };
 
-  const handleComment = (postId: string) => {
+  const handleComment = async (postId: string) => {
     if (!commentText.trim() || !currentUser) return;
-    addComment(postId, {
+    await addComment(postId, {
       authorUsername: currentUser.username,
       authorName: currentUser.name,
       authorAvatar: currentUser.avatar,
       text: commentText.trim(),
     });
     setCommentText("");
-    loadPosts();
     if (selectedPost?.id === postId) {
-      const updated = getFeedPosts().find((p) => p.id === postId);
-      if (updated) setSelectedPost(updated);
+      setSelectedPost((prev) => prev ? {
+        ...prev,
+        comments: [...prev.comments, {
+          id: `comment_${Date.now()}`,
+          authorUsername: currentUser.username,
+          authorName: currentUser.name,
+          authorAvatar: currentUser.avatar,
+          text: commentText.trim(),
+          createdAt: Date.now(),
+          likes: 0,
+        }],
+      } : null);
     }
   };
 
-  const openPost = (post: Post) => {
-    incrementView(post.id);
+  const openPost = async (post: Post) => {
+    await incrementView(post.id);
     setSelectedPost(post);
   };
 
-  if (!loaded) return null;
+  if (!loaded || posts.length === 0) return null;
 
-  if (posts.length === 0) return null;
+  const getMediaUrl = (post: Post) => {
+    return post.thumbnailUrl || post.mediaUrls?.[0] || "";
+  };
 
   return (
     <>
-      {/* Feed Posts Section */}
       <motion.section
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -140,73 +130,76 @@ export default function FeedPosts() {
           </div>
         </div>
 
-        {/* Horizontal scroll feed */}
         <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4">
-          {posts.map((post, i) => (
-            <motion.div
-              key={post.id}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, delay: i * 0.05 }}
-              className="flex-shrink-0 w-40 sm:w-44"
-            >
-              <button
-                onClick={() => openPost(post)}
-                className="w-full text-left touch-feedback"
+          {posts.map((post, i) => {
+            const mediaUrl = getMediaUrl(post);
+            return (
+              <motion.div
+                key={post.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3, delay: i * 0.05 }}
+                className="flex-shrink-0 w-40 sm:w-44"
               >
-                {/* Thumbnail */}
-                <div className="relative aspect-[9/16] rounded-2xl overflow-hidden bg-white/[0.04] group">
-                  {mediaUrls[post.thumbnailId || post.mediaIds[0]] ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={mediaUrls[post.thumbnailId || post.mediaIds[0]]}
-                      alt={post.caption}
-                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-5 h-5 rounded-full border-2 border-vox-purple/30 border-t-vox-purple animate-spin" />
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-
-                  {post.type === "video" && (
-                    <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
-                      <Play className="w-3.5 h-3.5 text-white fill-white" />
-                    </div>
-                  )}
-
-                  {/* Author overlay */}
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <Link
-                      href={`/profile/${post.authorUsername}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1.5"
-                    >
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink p-[1px] flex-shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={post.authorAvatar} alt={post.authorName} className="w-full h-full rounded-full object-cover" />
+                <button onClick={() => openPost(post)} className="w-full text-left touch-feedback">
+                  <div className="relative aspect-[9/16] rounded-2xl overflow-hidden bg-white/[0.04] group">
+                    {mediaUrl ? (
+                      post.type === "video" ? (
+                        <video
+                          src={mediaUrl}
+                          muted
+                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={mediaUrl}
+                          alt={post.caption}
+                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      )
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Play className="w-6 h-6 text-vox-muted" />
                       </div>
-                      <span className="text-[10px] text-white font-medium truncate">{post.authorName}</span>
-                    </Link>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+                    {post.type === "video" && (
+                      <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
+                        <Play className="w-3.5 h-3.5 text-white fill-white" />
+                      </div>
+                    )}
+
+                    <div className="absolute bottom-2 left-2 right-2">
+                      <Link
+                        href={`/profile/${post.authorUsername}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1.5"
+                      >
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink p-[1px] flex-shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={post.authorAvatar} alt={post.authorName} className="w-full h-full rounded-full object-cover" />
+                        </div>
+                        <span className="text-[10px] text-white font-medium truncate">{post.authorName}</span>
+                      </Link>
+                    </div>
+
+                    <div className="absolute top-2 left-2 flex items-center gap-2">
+                      <span className="flex items-center gap-0.5 text-[9px] text-white font-medium bg-black/40 px-1.5 py-0.5 rounded-full">
+                        <Heart className={`w-2.5 h-2.5 ${post.likedByMe ? "fill-vox-pink text-vox-pink" : ""}`} />
+                        {formatCount(post.likes)}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Stats */}
-                  <div className="absolute top-2 left-2 flex items-center gap-2">
-                    <span className="flex items-center gap-0.5 text-[9px] text-white font-medium bg-black/40 px-1.5 py-0.5 rounded-full">
-                      <Heart className={`w-2.5 h-2.5 ${post.likedByMe ? "fill-vox-pink text-vox-pink" : ""}`} />
-                      {formatCount(post.likes)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Caption preview */}
-                <p className="text-[11px] text-white/80 mt-1.5 line-clamp-2 leading-tight">
-                  {post.caption || "No caption"}
-                </p>
-              </button>
-            </motion.div>
-          ))}
+                  <p className="text-[11px] text-white/80 mt-1.5 line-clamp-2 leading-tight">
+                    {post.caption || "No caption"}
+                  </p>
+                </button>
+              </motion.div>
+            );
+          })}
         </div>
       </motion.section>
 
@@ -227,7 +220,6 @@ export default function FeedPosts() {
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-md max-h-[90vh] overflow-y-auto scrollbar-hide glass-strong rounded-3xl"
             >
-              {/* Close button */}
               <button
                 onClick={() => setSelectedPost(null)}
                 className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white touch-feedback"
@@ -235,7 +227,6 @@ export default function FeedPosts() {
                 <X className="w-4 h-4" />
               </button>
 
-              {/* Header */}
               <div className="flex items-center gap-3 p-4 border-b border-white/[0.06]">
                 <Link href={`/profile/${selectedPost.authorUsername}`} onClick={() => setSelectedPost(null)}>
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink p-[2px]">
@@ -244,33 +235,31 @@ export default function FeedPosts() {
                   </div>
                 </Link>
                 <div className="flex-1">
-                  <Link href={`/profile/${selectedPost.authorUsername}`} onClick={() => setSelectedPost(null)} className="flex items-center gap-1">
-                    <p className="text-sm font-semibold text-white">{selectedPost.authorName}</p>
-                  </Link>
+                  <p className="text-sm font-semibold text-white">{selectedPost.authorName}</p>
                   <p className="text-[10px] text-vox-muted">{timeAgo(selectedPost.createdAt)}</p>
                 </div>
               </div>
 
-              {/* Media */}
               <div className="relative bg-black/40">
-                {selectedPost.type === "video" && mediaUrls[selectedPost.mediaIds[0]] ? (
-                  <video
-                    src={mediaUrls[selectedPost.mediaIds[0]]}
-                    controls
-                    autoPlay
-                    className="w-full max-h-[400px] object-contain"
-                  />
-                ) : mediaUrls[selectedPost.mediaIds[0]] ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={mediaUrls[selectedPost.mediaIds[0]]} alt={selectedPost.caption} className="w-full max-h-[400px] object-contain" />
+                {getMediaUrl(selectedPost) ? (
+                  selectedPost.type === "video" ? (
+                    <video
+                      src={getMediaUrl(selectedPost)}
+                      controls
+                      autoPlay
+                      className="w-full max-h-[400px] object-contain"
+                    />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={getMediaUrl(selectedPost)} alt={selectedPost.caption} className="w-full max-h-[400px] object-contain" />
+                  )
                 ) : (
                   <div className="w-full aspect-[9/16] flex items-center justify-center">
-                    <div className="w-8 h-8 rounded-full border-2 border-vox-purple/30 border-t-vox-purple animate-spin" />
+                    <Play className="w-8 h-8 text-vox-muted" />
                   </div>
                 )}
               </div>
 
-              {/* Caption */}
               {selectedPost.caption && (
                 <div className="px-4 py-3">
                   <p className="text-sm text-white whitespace-pre-wrap">{selectedPost.caption}</p>
@@ -280,7 +269,6 @@ export default function FeedPosts() {
                 </div>
               )}
 
-              {/* Actions */}
               <div className="flex items-center gap-4 px-4 py-2 border-t border-white/[0.06]">
                 <button onClick={() => handleLike(selectedPost.id)} className="flex items-center gap-1.5 touch-feedback">
                   <Heart className={`w-5 h-5 ${selectedPost.likedByMe ? "fill-vox-pink text-vox-pink" : "text-white"}`} />
@@ -304,7 +292,6 @@ export default function FeedPosts() {
                 </button>
               </div>
 
-              {/* Comments */}
               <div className="px-4 py-3 border-t border-white/[0.06]">
                 <p className="text-xs font-semibold text-white mb-3">Comments ({selectedPost.comments.length})</p>
                 <div className="space-y-3 max-h-[200px] overflow-y-auto scrollbar-hide">
@@ -329,7 +316,6 @@ export default function FeedPosts() {
                   )}
                 </div>
 
-                {/* Add comment */}
                 {currentUser && (
                   <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/[0.06]">
                     <div className="w-7 h-7 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink p-[1.5px] flex-shrink-0">

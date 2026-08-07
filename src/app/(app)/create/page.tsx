@@ -32,11 +32,11 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
-  storeFile,
-  createPost,
+  uploadFile,
+  createPost as fbCreatePost,
   generateVideoThumbnail,
   compressImage,
-} from "@/lib/content-store";
+} from "@/lib/firebase-store";
 
 /* ─────────────────────────── DATA ─────────────────────────── */
 
@@ -226,29 +226,32 @@ export default function CreatePage() {
 
     try {
       const mediaIds: string[] = [];
+      const mediaUrls: string[] = [];
       let thumbnailId: string | undefined;
+      let thumbnailUrl: string | undefined;
       const isVideo = selectedFiles.length > 0 && selectedFiles[0].type.startsWith("video/");
 
       for (const file of selectedFiles) {
         if (file.type.startsWith("image/")) {
-          // Compress images before storing
           const compressed = await compressImage(file, 1080, 0.8);
-          const id = await storeFile(compressed);
+          const { url, id } = await uploadFile(compressed);
           mediaIds.push(id);
+          mediaUrls.push(url);
         } else if (file.type.startsWith("video/")) {
-          // Store video
-          const id = await storeFile(file);
+          const { url, id } = await uploadFile(file);
           mediaIds.push(id);
-          // Generate thumbnail
+          mediaUrls.push(url);
           const thumb = await generateVideoThumbnail(file);
           if (thumb) {
-            thumbnailId = await storeFile(thumb);
+            const { url: thumbUrl, id: thumbId } = await uploadFile(thumb);
+            thumbnailId = thumbId;
+            thumbnailUrl = thumbUrl;
           }
         }
       }
 
-      // Create the post
-      createPost({
+      // Create the post (Firebase or localStorage)
+      await fbCreatePost({
         authorUsername: currentUser.username,
         authorName: currentUser.name,
         authorAvatar: currentUser.avatar,
@@ -256,7 +259,9 @@ export default function CreatePage() {
         hashtags,
         type: isVideo ? "video" : "photo",
         mediaIds,
+        mediaUrls,
         thumbnailId,
+        thumbnailUrl,
         privacy: privacy as "Public" | "Friends" | "Private",
         allowDownload: toggleStates["Allow Download"] ?? false,
         allowComments: true,
@@ -289,8 +294,9 @@ export default function CreatePage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const compressed = await compressImage(file, 800, 0.8);
-    const id = await storeFile(compressed);
+    const { url, id } = await uploadFile(compressed);
     setAdImageId(id);
+    setAdImageUrl(url);
     setAdImageUrl(URL.createObjectURL(compressed));
   };
 

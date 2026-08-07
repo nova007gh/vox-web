@@ -17,7 +17,9 @@ export interface Post {
   hashtags: string;
   type: "video" | "photo";
   mediaIds: string[]; // IndexedDB file keys
+  mediaUrls?: string[]; // Firebase Storage URLs
   thumbnailId?: string; // For videos - a poster image
+  thumbnailUrl?: string; // Firebase Storage URL for thumbnail
   privacy: "Public" | "Friends" | "Private";
   allowDownload: boolean;
   allowComments: boolean;

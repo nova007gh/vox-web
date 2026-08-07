@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Play,
@@ -14,8 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import {
-  getUserPosts,
-  getFileURL,
+  subscribeToUserPosts,
   toggleLike,
   toggleSave,
   addComment,
@@ -26,7 +25,7 @@ import {
   timeAgo,
   formatCount,
   type Post,
-} from "@/lib/content-store";
+} from "@/lib/firebase-store";
 import { useAuth } from "@/lib/auth-context";
 
 interface UserPostsGridProps {
@@ -37,68 +36,45 @@ interface UserPostsGridProps {
 export default function UserPostsGrid({ username, emptyMessage = "No posts yet" }: UserPostsGridProps) {
   const { currentUser } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
-  const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [commentText, setCommentText] = useState("");
   const [showMenu, setShowMenu] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  const loadPosts = useCallback(() => {
-    const userPosts = getUserPosts(username).sort((a, b) => b.createdAt - a.createdAt);
-    setPosts(userPosts);
-    setLoaded(true);
+  // Real-time subscription to user posts
+  useEffect(() => {
+    const unsubscribe = subscribeToUserPosts(username, (userPosts) => {
+      setPosts(userPosts);
+      setLoaded(true);
+    });
+    return () => unsubscribe();
   }, [username]);
 
-  useEffect(() => {
-    loadPosts();
-  }, [loadPosts]);
-
-  // Load media URLs for all posts
-  useEffect(() => {
-    let cancelled = false;
-    const urls: Record<string, string> = {};
-    const allMediaIds = posts.flatMap((p) => [
-      ...(p.thumbnailId ? [p.thumbnailId] : []),
-      ...p.mediaIds,
-    ]);
-    Promise.all(
-      allMediaIds.map(async (id) => {
-        const url = await getFileURL(id);
-        if (url) urls[id] = url;
-      }),
-    ).then(() => {
-      if (!cancelled) setMediaUrls(urls);
-    });
-    return () => {
-      cancelled = true;
-      Object.values(urls).forEach((u) => URL.revokeObjectURL(u));
-    };
-  }, [posts]);
-
-  const handleLike = (postId: string) => {
-    toggleLike(postId);
-    loadPosts();
+  const handleLike = async (postId: string) => {
+    await toggleLike(postId);
     if (selectedPost?.id === postId) {
-      setSelectedPost((prev) => prev ? { ...prev, likedByMe: !prev.likedByMe, likes: prev.likedByMe ? prev.likes - 1 : prev.likes + 1 } : null);
+      setSelectedPost((prev) => prev ? {
+        ...prev,
+        likedByMe: !prev.likedByMe,
+        likes: prev.likedByMe ? prev.likes - 1 : prev.likes + 1,
+      } : null);
     }
   };
 
-  const handleSave = (postId: string) => {
-    toggleSave(postId);
-    loadPosts();
+  const handleSave = async (postId: string) => {
+    await toggleSave(postId);
     if (selectedPost?.id === postId) {
       setSelectedPost((prev) => prev ? { ...prev, savedByMe: !prev.savedByMe } : null);
     }
   };
 
-  const handleShare = (postId: string) => {
-    incrementShare(postId);
+  const handleShare = async (postId: string) => {
+    await incrementShare(postId);
     if (navigator.share) {
       navigator.share({ title: "VOXel Post", text: "Check out this post on VOXel!", url: window.location.href }).catch(() => {});
     } else {
       navigator.clipboard?.writeText(window.location.href);
     }
-    loadPosts();
   };
 
   const handleDownload = async (postId: string, mediaId: string) => {
@@ -107,19 +83,28 @@ export default function UserPostsGrid({ username, emptyMessage = "No posts yet" 
     await downloadFile(mediaId, `voxel_${postId}.${ext}`);
   };
 
-  const handleComment = (postId: string) => {
+  const handleComment = async (postId: string) => {
     if (!commentText.trim() || !currentUser) return;
-    addComment(postId, {
+    await addComment(postId, {
       authorUsername: currentUser.username,
       authorName: currentUser.name,
       authorAvatar: currentUser.avatar,
       text: commentText.trim(),
     });
     setCommentText("");
-    loadPosts();
     if (selectedPost?.id === postId) {
-      const updated = getUserPosts(username).find((p) => p.id === postId);
-      if (updated) setSelectedPost(updated);
+      setSelectedPost((prev) => prev ? {
+        ...prev,
+        comments: [...prev.comments, {
+          id: `comment_${Date.now()}`,
+          authorUsername: currentUser.username,
+          authorName: currentUser.name,
+          authorAvatar: currentUser.avatar,
+          text: commentText.trim(),
+          createdAt: Date.now(),
+          likes: 0,
+        }],
+      } : null);
     }
   };
 
@@ -127,11 +112,10 @@ export default function UserPostsGrid({ username, emptyMessage = "No posts yet" 
     await deletePost(postId);
     setSelectedPost(null);
     setShowMenu(false);
-    loadPosts();
   };
 
-  const openPost = (post: Post) => {
-    incrementView(post.id);
+  const openPost = async (post: Post) => {
+    await incrementView(post.id);
     setSelectedPost(post);
   };
 
@@ -144,6 +128,7 @@ export default function UserPostsGrid({ username, emptyMessage = "No posts yet" 
   }
 
   if (posts.length === 0) {
+    if (!emptyMessage) return null;
     return (
       <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
         <div className="w-16 h-16 rounded-full bg-white/[0.04] flex items-center justify-center mb-4">
@@ -157,59 +142,60 @@ export default function UserPostsGrid({ username, emptyMessage = "No posts yet" 
     );
   }
 
+  const getMediaUrl = (post: Post & { mediaUrls?: string[]; thumbnailUrl?: string }) => {
+    return post.thumbnailUrl || post.mediaUrls?.[0] || "";
+  };
+
   return (
     <>
-      {/* Posts Grid */}
       <div className="grid grid-cols-3 gap-1 sm:gap-2">
-        {posts.map((post, i) => (
-          <motion.button
-            key={post.id}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3, delay: i * 0.05 }}
-            onClick={() => openPost(post)}
-            className="relative aspect-[9/16] rounded-xl overflow-hidden touch-feedback group cursor-pointer bg-white/[0.04]"
-          >
-            {/* Thumbnail */}
-            {mediaUrls[post.thumbnailId || post.mediaIds[0]] ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={mediaUrls[post.thumbnailId || post.mediaIds[0]]}
-                alt={post.caption}
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-5 h-5 rounded-full border-2 border-vox-purple/30 border-t-vox-purple animate-spin" />
+        {posts.map((post, i) => {
+          const mediaUrl = getMediaUrl(post);
+          return (
+            <motion.button
+              key={post.id}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, delay: i * 0.05 }}
+              onClick={() => openPost(post)}
+              className="relative aspect-[9/16] rounded-xl overflow-hidden touch-feedback group cursor-pointer bg-white/[0.04]"
+            >
+              {mediaUrl ? (
+                post.type === "video" ? (
+                  <video src={mediaUrl} muted className="absolute inset-0 w-full h-full object-cover" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={mediaUrl} alt={post.caption} className="absolute inset-0 w-full h-full object-cover" />
+                )
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Play className="w-5 h-5 text-vox-muted" />
+                </div>
+              )}
+
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+
+              {post.type === "video" && (
+                <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
+                  <Play className="w-3 h-3 text-white fill-white" />
+                </div>
+              )}
+
+              <div className="absolute bottom-1.5 left-2 flex items-center gap-3">
+                <span className="flex items-center gap-1 text-[10px] text-white font-medium">
+                  <Heart className={`w-3 h-3 ${post.likedByMe ? "fill-vox-pink text-vox-pink" : ""}`} />
+                  {formatCount(post.likes)}
+                </span>
+                <span className="flex items-center gap-1 text-[10px] text-white font-medium">
+                  <MessageCircle className="w-3 h-3" />
+                  {formatCount(post.comments.length)}
+                </span>
               </div>
-            )}
-
-            {/* Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
-
-            {/* Type badge */}
-            {post.type === "video" && (
-              <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
-                <Play className="w-3 h-3 text-white fill-white" />
-              </div>
-            )}
-
-            {/* Stats */}
-            <div className="absolute bottom-1.5 left-2 flex items-center gap-3">
-              <span className="flex items-center gap-1 text-[10px] text-white font-medium">
-                <Heart className={`w-3 h-3 ${post.likedByMe ? "fill-vox-pink text-vox-pink" : ""}`} />
-                {formatCount(post.likes)}
-              </span>
-              <span className="flex items-center gap-1 text-[10px] text-white font-medium">
-                <MessageCircle className="w-3 h-3" />
-                {formatCount(post.comments.length)}
-              </span>
-            </div>
-          </motion.button>
-        ))}
+            </motion.button>
+          );
+        })}
       </div>
 
-      {/* Post Detail Modal */}
       <AnimatePresence>
         {selectedPost && (
           <motion.div
@@ -226,7 +212,6 @@ export default function UserPostsGrid({ username, emptyMessage = "No posts yet" 
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-md max-h-[90vh] overflow-y-auto scrollbar-hide glass-strong rounded-3xl"
             >
-              {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-white/[0.06] sticky top-0 glass-strong z-10 rounded-t-3xl">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink p-[2px]">
@@ -267,26 +252,21 @@ export default function UserPostsGrid({ username, emptyMessage = "No posts yet" 
                 </div>
               </div>
 
-              {/* Media */}
               <div className="relative bg-black/40">
-                {selectedPost.type === "video" && mediaUrls[selectedPost.mediaIds[0]] ? (
-                  <video
-                    src={mediaUrls[selectedPost.mediaIds[0]]}
-                    controls
-                    autoPlay
-                    className="w-full max-h-[400px] object-contain"
-                  />
-                ) : mediaUrls[selectedPost.mediaIds[0]] ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={mediaUrls[selectedPost.mediaIds[0]]} alt={selectedPost.caption} className="w-full max-h-[400px] object-contain" />
+                {getMediaUrl(selectedPost) ? (
+                  selectedPost.type === "video" ? (
+                    <video src={getMediaUrl(selectedPost)} controls autoPlay className="w-full max-h-[400px] object-contain" />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={getMediaUrl(selectedPost)} alt={selectedPost.caption} className="w-full max-h-[400px] object-contain" />
+                  )
                 ) : (
                   <div className="w-full aspect-[9/16] flex items-center justify-center">
-                    <div className="w-8 h-8 rounded-full border-2 border-vox-purple/30 border-t-vox-purple animate-spin" />
+                    <Play className="w-8 h-8 text-vox-muted" />
                   </div>
                 )}
               </div>
 
-              {/* Caption */}
               {selectedPost.caption && (
                 <div className="px-4 py-3">
                   <p className="text-sm text-white whitespace-pre-wrap">{selectedPost.caption}</p>
@@ -296,7 +276,6 @@ export default function UserPostsGrid({ username, emptyMessage = "No posts yet" 
                 </div>
               )}
 
-              {/* Actions */}
               <div className="flex items-center gap-4 px-4 py-2 border-t border-white/[0.06]">
                 <button onClick={() => handleLike(selectedPost.id)} className="flex items-center gap-1.5 touch-feedback">
                   <Heart className={`w-5 h-5 ${selectedPost.likedByMe ? "fill-vox-pink text-vox-pink" : "text-white"}`} />
@@ -315,7 +294,6 @@ export default function UserPostsGrid({ username, emptyMessage = "No posts yet" 
                 </button>
               </div>
 
-              {/* Comments */}
               <div className="px-4 py-3 border-t border-white/[0.06]">
                 <p className="text-xs font-semibold text-white mb-3">Comments ({selectedPost.comments.length})</p>
                 <div className="space-y-3 max-h-[200px] overflow-y-auto scrollbar-hide">
@@ -340,7 +318,6 @@ export default function UserPostsGrid({ username, emptyMessage = "No posts yet" 
                   )}
                 </div>
 
-                {/* Add comment */}
                 {currentUser && (
                   <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/[0.06]">
                     <div className="w-7 h-7 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink p-[1.5px] flex-shrink-0">
