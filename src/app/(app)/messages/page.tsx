@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { sendMessage, subscribeToMessages, subscribeToConversations, uploadFile, compressImage, type ChatMessage } from "@/lib/firebase-store";
-import { getAccount } from "@/lib/accounts";
+import { getAccount, accounts } from "@/lib/accounts";
 
 /* ───────────────────────────── HELPERS ───────────────────────────── */
 
@@ -686,6 +686,9 @@ export default function MessagesPage() {
   const handleSelectChat = (id: number) => {
     setSelectedChat(id);
     setShowMobileChat(true);
+    // Don't reset messages here - the real-time subscription will handle it
+    // Show demo messages as placeholder until Firebase data loads
+    setHasRealtimeData(false);
     setMessages(conversationMessages);
   };
 
@@ -1577,19 +1580,50 @@ export default function MessagesPage() {
                 className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-vox-purple"
               />
               <div className="space-y-1 max-h-60 overflow-y-auto scrollbar-hide">
-                {chatsList.filter(c => c.name.toLowerCase().includes(newMessageSearch.toLowerCase())).map((chat) => (
+                {accounts
+                  .filter(a => a.username !== currentUser?.username)
+                  .filter(a => a.name.toLowerCase().includes(newMessageSearch.toLowerCase()) || a.username.toLowerCase().includes(newMessageSearch.toLowerCase()))
+                  .map((account) => (
                   <button
-                    key={chat.id}
-                    onClick={() => { handleSelectChat(chat.id); setShowNewMessage(false); }}
+                    key={account.username}
+                    onClick={() => {
+                      // Find or create chat for this user
+                      const existing = chatsList.find(c => c.username === account.username);
+                      if (existing) {
+                        handleSelectChat(existing.id);
+                      } else {
+                        // Add new chat to list
+                        const newChat: Chat = {
+                          id: Date.now(),
+                          name: account.name,
+                          handle: `@${account.username}`,
+                          username: account.username,
+                          lastMessage: "Start a conversation",
+                          time: "now",
+                          unread: 0,
+                          online: false,
+                          verified: account.verified,
+                          seller: account.isSeller,
+                          avatar: "from-vox-purple to-vox-pink",
+                          avatarUrl: account.avatar,
+                          role: account.isSeller ? "Seller" : "",
+                          followers: account.followers,
+                          likes: "0",
+                        };
+                        setChatsList(prev => [newChat, ...prev]);
+                        handleSelectChat(newChat.id);
+                      }
+                      setShowNewMessage(false);
+                    }}
                     className="w-full flex items-center gap-3 p-2.5 rounded-xl touch-feedback hover:bg-white/[0.06] transition-colors"
                   >
-                    <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${chat.avatar} p-[2px]`}>
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink p-[2px]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={chat.avatarUrl} alt={chat.name} className="w-full h-full rounded-full object-cover" />
+                      <img src={account.avatar} alt={account.name} className="w-full h-full rounded-full object-cover" />
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-medium text-white">{chat.name}</p>
-                      <p className="text-[11px] text-vox-muted">{chat.handle}</p>
+                      <p className="text-sm font-medium text-white">{account.name}</p>
+                      <p className="text-[11px] text-vox-muted">@{account.username}</p>
                     </div>
                   </button>
                 ))}
