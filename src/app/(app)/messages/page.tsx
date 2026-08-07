@@ -369,7 +369,8 @@ export default function MessagesPage() {
   const router = useRouter();
   const { currentUser } = useAuth();
   const [chatsList, setChatsList] = useState<Chat[]>(initialChats);
-  const [selectedChat, setSelectedChat] = useState<number>(1);
+  const [selectedChatId, setSelectedChatId] = useState<number>(1);
+  const [selectedChatUsername, setSelectedChatUsername] = useState<string>("just_wearwigs");
   const [messageInput, setMessageInput] = useState("");
   const [activeTab, setActiveTab] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -379,8 +380,10 @@ export default function MessagesPage() {
   const [messages, setMessages] = useState<Message[]>(conversationMessages);
   const [realtimeMessages, setRealtimeMessages] = useState<ChatMessage[]>([]);
 
-  // Get the active chat's username
-  const activeChat = chatsList.find((c) => c.id === selectedChat) || chatsList[0];
+  // Get the active chat - try by ID first, then by username, then fallback to first
+  const activeChat = chatsList.find((c) => c.id === selectedChatId) ||
+    chatsList.find((c) => c.username === selectedChatUsername) ||
+    chatsList[0];
   const activeChatUsername = activeChat?.username || activeChat?.handle?.replace("@", "") || "";
 
   // Track whether we've received any real-time messages for this chat
@@ -439,47 +442,44 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!currentUser || realConversations.length === 0) return;
 
+    // Build a map of real conversation usernames for quick lookup
+    const realConvMap = new Map(realConversations.map(c => [c.username, c]));
+
     // Get account info for real conversation users
-    const merged = [...initialChats];
     let nextId = 100;
+    const realChats: Chat[] = [];
+    const seedChats: Chat[] = [];
 
     for (const conv of realConversations) {
-      // Skip if this user is already in the chat list
-      const existingIdx = merged.findIndex((c) => c.username === conv.username);
       const account = getAccount(conv.username);
+      realChats.push({
+        id: nextId++,
+        name: account?.name || conv.username,
+        handle: `@${conv.username}`,
+        username: conv.username,
+        lastMessage: conv.lastMessage,
+        time: timeAgoShort(conv.lastMessageTime),
+        unread: conv.unread,
+        online: false,
+        verified: account?.verified || false,
+        seller: account?.isSeller || false,
+        avatar: "from-vox-purple to-vox-pink",
+        avatarUrl: account?.avatar || "",
+        role: account?.isSeller ? "Seller" : "",
+        followers: account?.followers || "0",
+        likes: "0",
+      });
+    }
 
-      if (existingIdx >= 0) {
-        // Update existing chat with real data
-        merged[existingIdx] = {
-          ...merged[existingIdx],
-          lastMessage: conv.lastMessage,
-          unread: conv.unread,
-          time: timeAgoShort(conv.lastMessageTime),
-        };
-      } else {
-        // Add new chat
-        merged.unshift({
-          id: nextId++,
-          name: account?.name || conv.username,
-          handle: `@${conv.username}`,
-          username: conv.username,
-          lastMessage: conv.lastMessage,
-          time: timeAgoShort(conv.lastMessageTime),
-          unread: conv.unread,
-          online: false,
-          verified: account?.verified || false,
-          seller: account?.isSeller || false,
-          avatar: "from-vox-purple to-vox-pink",
-          avatarUrl: account?.avatar || "",
-          role: account?.isSeller ? "Seller" : "",
-          followers: account?.followers || "0",
-          likes: "0",
-        });
+    // Keep seed chats that don't have real conversations
+    for (const seedChat of initialChats) {
+      if (!realConvMap.has(seedChat.username || "")) {
+        seedChats.push(seedChat);
       }
     }
 
-    // Sort: real conversations first (by lastMessageTime), then seed chats
-    setChatsList(merged);
+    // Real conversations first (already sorted by time), then seed chats
+    setChatsList([...realChats, ...seedChats]);
   }, [realConversations, currentUser]);
 
   const [callState, setCallState] = useState<{ active: boolean; type: "voice" | "video"; duration: number }>({ active: false, type: "voice", duration: 0 });
@@ -546,18 +546,18 @@ export default function MessagesPage() {
   const isGroupChat = (chat: Chat) => !!chat.isGroup;
 
   const handleDeleteChat = () => {
-    setChatsList((prev) => prev.filter((c) => c.id !== selectedChat));
+    setChatsList((prev) => prev.filter((c) => c.id !== selectedChatId));
     showToast("Conversation deleted");
     setShowMobileChat(false);
-    setSelectedChat(chatsList[0]?.id ?? 0);
+    setSelectedChatId(chatsList[0]?.id ?? 0);
   };
 
   const handleBlockChat = () => {
     setShowBlockModal(false);
     showToast(`${activeChat.name} blocked`);
-    setChatsList((prev) => prev.filter((c) => c.id !== selectedChat));
+    setChatsList((prev) => prev.filter((c) => c.id !== selectedChatId));
     setShowMobileChat(false);
-    setSelectedChat(chatsList[0]?.id ?? 0);
+    setSelectedChatId(chatsList[0]?.id ?? 0);
   };
 
   const handleClearChat = () => {
@@ -570,22 +570,22 @@ export default function MessagesPage() {
       showToast("This is not a group chat");
       return;
     }
-    setChatsList((prev) => prev.filter((c) => c.id !== selectedChat));
+    setChatsList((prev) => prev.filter((c) => c.id !== selectedChatId));
     showToast("Left group");
     setShowMobileChat(false);
-    setSelectedChat(chatsList[0]?.id ?? 0);
+    setSelectedChatId(chatsList[0]?.id ?? 0);
   };
 
   const handleToggleFavorite = () => {
     setChatsList((prev) =>
-      prev.map((c) => (c.id === selectedChat ? { ...c, starred: !c.starred } : c))
+      prev.map((c) => (c.id === selectedChatId ? { ...c, starred: !c.starred } : c))
     );
     showToast(activeChat.starred ? "Removed from favorites" : "Added to favorites");
   };
 
   const handleMarkUnread = () => {
     setChatsList((prev) =>
-      prev.map((c) => (c.id === selectedChat ? { ...c, unread: 1 } : c))
+      prev.map((c) => (c.id === selectedChatId ? { ...c, unread: 1 } : c))
     );
     showToast("Marked as unread");
     setShowMobileChat(false);
@@ -626,7 +626,7 @@ export default function MessagesPage() {
   /* auto-scroll to bottom */
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [selectedChat, messages]);
+  }, [selectedChatId, messages]);
 
   /* filter chats */
   const filteredChats = chatsList.filter((chat) => {
@@ -684,12 +684,14 @@ export default function MessagesPage() {
   };
 
   const handleSelectChat = (id: number) => {
-    setSelectedChat(id);
+    const chat = chatsList.find(c => c.id === id);
+    setSelectedChatId(id);
+    if (chat?.username) setSelectedChatUsername(chat.username);
     setShowMobileChat(true);
     // Don't reset messages here - the real-time subscription will handle it
-    // Show demo messages as placeholder until Firebase data loads
+    // Show empty state until Firebase data loads
     setHasRealtimeData(false);
-    setMessages(conversationMessages);
+    setMessages([]);
   };
 
   const msgPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -857,7 +859,7 @@ export default function MessagesPage() {
                 transition={{ delay: i * 0.04, duration: 0.25 }}
                 onClick={() => handleSelectChat(chat.id)}
                 className={`w-full flex items-center gap-3 p-3 sm:p-4 touch-feedback rounded-xl transition-all duration-200 text-left group active:bg-white/[0.04] ${
-                  selectedChat === chat.id
+                  selectedChatId === chat.id
                     ? "glass-strong border-vox-purple/30 shadow-lg shadow-vox-purple/5"
                     : "hover:bg-white/[0.04] border border-transparent"
                 }`}
