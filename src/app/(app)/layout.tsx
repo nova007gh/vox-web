@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -42,13 +42,29 @@ const bottomNav = [
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { currentUser } = useAuth();
+  const { currentUser, hydrated } = useAuth();
+
+  // Redirect to auth if not logged in
+  useEffect(() => {
+    if (hydrated && !currentUser) {
+      router.push("/auth");
+    }
+  }, [hydrated, currentUser, router]);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
   };
+
+  if (!hydrated || !currentUser) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-vox-bg">
+        <div className="w-8 h-8 rounded-full border-2 border-vox-purple/30 border-t-vox-purple animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen app-height bg-vox-bg overflow-hidden">

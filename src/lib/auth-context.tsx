@@ -224,7 +224,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       username: data.username.trim(),
       name: data.name.trim(),
       bio: data.bio ?? "",
-      avatar: data.avatar ?? "",
+      avatar: data.avatar ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name.trim())}&background=6C2BD9&color=fff&size=200&bold=true`,
       cover: "",
       followers: "0",
       following: "0",
