@@ -486,6 +486,111 @@ export function subscribeToMessages(
   return () => {};
 }
 
+/** Mark all messages in a conversation as read */
+export async function markMessagesAsRead(
+  currentUser: string,
+  otherUser: string,
+): Promise<void> {
+  const chatId = getChatId(currentUser, otherUser);
+  if (USE_FIREBASE && db) {
+    const dbInstance = db; // Capture for type narrowing in closure
+    const q = query(
+      collection(dbInstance, "messages"),
+      where("chatId", "==", chatId),
+      where("receiverUsername", "==", currentUser),
+      where("read", "==", false),
+    );
+    const snapshot = await getDocs(q);
+    const batch = snapshot.docs.map((docSnap) =>
+      updateDoc(doc(dbInstance, "messages", docSnap.id), { read: true }),
+    );
+    await Promise.all(batch);
+    return;
+  }
+  // Fallback: update localStorage
+  const messages: ChatMessage[] = JSON.parse(localStorage.getItem(`voxel_chat_${chatId}`) || "[]");
+  messages.forEach((m) => {
+    if (m.receiverUsername === currentUser) m.read = true;
+  });
+  localStorage.setItem(`voxel_chat_${chatId}`, JSON.stringify(messages));
+}
+
+/** Set typing status for a user in a conversation */
+export async function setTypingStatus(
+  currentUser: string,
+  otherUser: string,
+  isTyping: boolean,
+): Promise<void> {
+  if (!USE_FIREBASE || !db) return;
+  const chatId = getChatId(currentUser, otherUser);
+  const typingId = `typing_${chatId}_${currentUser}`;
+  try {
+    if (isTyping) {
+      await addDoc(collection(db, "typing"), {
+        id: typingId,
+        chatId,
+        username: currentUser,
+        isTyping: true,
+        timestamp: serverTimestamp(),
+      });
+    }
+  } catch {
+    // Ignore typing errors - non-critical feature
+  }
+}
+
+/** Subscribe to typing status of the other user */
+export function subscribeToTyping(
+  currentUser: string,
+  otherUser: string,
+  callback: (isTyping: boolean) => void,
+): Unsubscribe | (() => void) {
+  if (!USE_FIREBASE || !db) {
+    callback(false);
+    return () => {};
+  }
+  const chatId = getChatId(currentUser, otherUser);
+  const q = query(
+    collection(db, "typing"),
+    where("chatId", "==", chatId),
+    where("username", "==", otherUser),
+  );
+  return onSnapshot(q, (snapshot) => {
+    if (snapshot.empty) {
+      callback(false);
+      return;
+    }
+    // Check if the typing indicator is recent (within 3 seconds)
+    const latest = snapshot.docs[snapshot.docs.length - 1].data();
+    const timestamp = latest.timestamp?.toMillis?.() || 0;
+    const isRecent = Date.now() - timestamp < 3000;
+    callback(isRecent && latest.isTyping);
+  }, () => {
+    callback(false);
+  });
+}
+
+/** Get total unread message count for a user */
+export function subscribeToUnreadCount(
+  username: string,
+  callback: (count: number) => void,
+): Unsubscribe | (() => void) {
+  if (USE_FIREBASE && db) {
+    const q = query(
+      collection(db, "messages"),
+      where("receiverUsername", "==", username),
+      where("read", "==", false),
+    );
+    return onSnapshot(q, (snapshot) => {
+      callback(snapshot.size);
+    }, () => {
+      callback(0);
+    });
+  }
+  callback(0);
+  return () => {};
+}
+
 /** Subscribe to all conversations for a user (real-time) */
 export function subscribeToConversations(
   username: string,

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
+import { subscribeToUnreadCount } from "@/lib/firebase-store";
 import {
   Home,
   PlusCircle,
@@ -45,6 +46,40 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { currentUser, hydrated } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Subscribe to real-time unread message count
+  const prevUnreadRef = useRef(0);
+  useEffect(() => {
+    if (!currentUser) {
+      setUnreadCount(0);
+      return;
+    }
+    const unsubscribe = subscribeToUnreadCount(currentUser.username, (count) => {
+      setUnreadCount(count);
+      // Show browser notification when new messages arrive (and not on messages page)
+      if (count > prevUnreadRef.current && pathname !== "/messages" && "Notification" in window && Notification.permission === "granted") {
+        const newCount = count - prevUnreadRef.current;
+        try {
+          new Notification("New message", {
+            body: `You have ${newCount} new message${newCount > 1 ? "s" : ""}`,
+            icon: "/icons/icon-192.png",
+          });
+        } catch {
+          // Ignore notification errors
+        }
+      }
+      prevUnreadRef.current = count;
+    });
+    return () => unsubscribe();
+  }, [currentUser, pathname]);
+
+  // Request notification permission on first load
+  useEffect(() => {
+    if (currentUser && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, [currentUser]);
 
   // Redirect to auth if not logged in
   useEffect(() => {
@@ -135,14 +170,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {!sidebarCollapsed && (
                   <>
                     <span className="text-sm font-medium">{item.label}</span>
-                    {item.badge && (
+                    {item.label === "Messages" && unreadCount > 0 ? (
+                      <span className="ml-auto text-[10px] font-bold bg-gradient-to-r from-vox-pink to-vox-purple text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                        {unreadCount}
+                      </span>
+                    ) : item.badge && item.label !== "Messages" ? (
                       <span className="ml-auto text-[10px] font-bold bg-gradient-to-r from-vox-pink to-vox-purple text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
                         {item.badge}
                       </span>
-                    )}
+                    ) : null}
                   </>
                 )}
-                {sidebarCollapsed && item.badge && (
+                {sidebarCollapsed && ((item.label === "Messages" && unreadCount > 0) || (item.badge && item.label !== "Messages")) && (
                   <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-vox-pink" />
                 )}
               </Link>

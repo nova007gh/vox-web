@@ -41,7 +41,7 @@ import {
   Check,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { sendMessage, subscribeToMessages, subscribeToConversations, uploadFile, compressImage, type ChatMessage } from "@/lib/firebase-store";
+import { sendMessage, subscribeToMessages, subscribeToConversations, markMessagesAsRead, subscribeToTyping, subscribeToUnreadCount, setTypingStatus, uploadFile, compressImage, type ChatMessage } from "@/lib/firebase-store";
 import { getAccount, accounts } from "@/lib/accounts";
 
 /* ───────────────────────────── HELPERS ───────────────────────────── */
@@ -408,6 +408,27 @@ export default function MessagesPage() {
     return () => unsubscribe();
   }, [currentUser, activeChatUsername]);
 
+  // Typing indicator subscription
+  const [otherUserTyping, setOtherUserTyping] = useState(false);
+  useEffect(() => {
+    if (!currentUser || !activeChatUsername) {
+      setOtherUserTyping(false);
+      return;
+    }
+    const unsubscribe = subscribeToTyping(
+      currentUser.username,
+      activeChatUsername,
+      (isTyping) => setOtherUserTyping(isTyping),
+    );
+    return () => unsubscribe();
+  }, [currentUser, activeChatUsername]);
+
+  // Mark messages as read when viewing a conversation
+  useEffect(() => {
+    if (!currentUser || !activeChatUsername || !hasRealtimeData) return;
+    markMessagesAsRead(currentUser.username, activeChatUsername).catch(() => {});
+  }, [currentUser, activeChatUsername, hasRealtimeData, realtimeMessages.length]);
+
   // Show real-time messages from Firebase when available, otherwise show demo messages
   useEffect(() => {
     if (!hasRealtimeData) return; // Still loading from Firebase
@@ -503,7 +524,6 @@ export default function MessagesPage() {
   const [searchInChat, setSearchInChat] = useState(false);
   const [searchInChatQuery, setSearchInChatQuery] = useState("");
   const [toast, setToast] = useState<string | null>(null);
-  const [isTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const showToast = (msg: string) => {
@@ -1091,6 +1111,24 @@ export default function MessagesPage() {
             </span>
           </div>
 
+          {/* Empty state */}
+          {hasRealtimeData && messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 relative z-10">
+              <div className="w-16 h-16 rounded-full bg-white/[0.04] flex items-center justify-center mb-4">
+                <MessageCircle className="w-7 h-7 text-vox-muted" />
+              </div>
+              <p className="text-vox-muted text-sm font-medium">No messages yet</p>
+              <p className="text-vox-muted/60 text-xs mt-1">Send a message to start the conversation</p>
+            </div>
+          )}
+
+          {/* Loading state */}
+          {!hasRealtimeData && messages.length === 0 && (
+            <div className="flex items-center justify-center py-20 relative z-10">
+              <div className="w-6 h-6 rounded-full border-2 border-vox-purple/30 border-t-vox-purple animate-spin" />
+            </div>
+          )}
+
           {messages
             .filter((msg) =>
               searchInChat && searchInChatQuery
@@ -1136,7 +1174,7 @@ export default function MessagesPage() {
                     >
                       <span className="text-[9px] text-vox-muted">{msg.time}</span>
                       {msg.sender === "me" && (
-                        <CheckCheck className="w-3.5 h-3.5 text-vox-cyan/80" />
+                        <CheckCheck className={`w-3.5 h-3.5 ${msg.read ? "text-vox-cyan" : "text-vox-muted"}`} />
                       )}
                     </div>
                   </div>
@@ -1201,7 +1239,7 @@ export default function MessagesPage() {
                       <p className="text-sm font-medium text-white/90">{msg.content}</p>
                       <div className="flex items-center justify-end gap-1 mt-2">
                         <span className="text-[9px] text-vox-muted">{msg.time}</span>
-                        <CheckCheck className="w-3.5 h-3.5 text-vox-cyan/80" />
+                        <CheckCheck className={`w-3.5 h-3.5 ${msg.read ? "text-vox-cyan" : "text-vox-muted"}`} />
                       </div>
                     </div>
                   </div>
@@ -1212,7 +1250,7 @@ export default function MessagesPage() {
 
           {/* Typing indicator */}
           <AnimatePresence>
-            {isTyping && (
+            {otherUserTyping && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1250,7 +1288,12 @@ export default function MessagesPage() {
               <input
                 type="text"
                 value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
+                onChange={(e) => {
+                  setMessageInput(e.target.value);
+                  if (currentUser && activeChatUsername && e.target.value.trim()) {
+                    setTypingStatus(currentUser.username, activeChatUsername, true).catch(() => {});
+                  }
+                }}
                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
                 placeholder="Type a message..."
                 className="w-full flex-1 bg-white/[0.06] rounded-full px-4 py-2.5 text-base text-white placeholder:text-vox-muted/50 focus:outline-none focus:border-vox-purple/40 transition-all duration-200 pr-24 sm:pr-28"
