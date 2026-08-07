@@ -7,12 +7,13 @@ import { getFirestore, type Firestore } from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyCG_zzPqHhVEyi7-Z-tmXXT0Qx03yZCG-g",
+  authDomain: "voxel-dbe93.firebaseapp.com",
+  projectId: "voxel-dbe93",
+  storageBucket: "voxel-dbe93.firebasestorage.app",
+  messagingSenderId: "704974895646",
+  appId: "1:704974895646:web:be6bfa8073e7f6acd80c0f",
+  measurementId: "G-J7X7BY19DZ",
 };
 
 let app: FirebaseApp | null = null;
