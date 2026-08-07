@@ -14,7 +14,6 @@ import {
   deleteDoc,
   getDocs,
   query,
-  orderBy,
   where,
   onSnapshot,
   increment,
@@ -124,10 +123,10 @@ export function getUserPosts(username: string): Post[] {
 /** Subscribe to feed posts (real-time) */
 export function subscribeToFeedPosts(callback: (posts: Post[]) => void): Unsubscribe | (() => void) {
   if (USE_FIREBASE && db) {
+    // No orderBy to avoid composite index requirement - sort client-side
     const q = query(
       collection(db, "posts"),
       where("privacy", "==", "Public"),
-      orderBy("createdAt", "desc"),
     );
     return onSnapshot(q, (snapshot) => {
       const posts: Post[] = [];
@@ -159,7 +158,12 @@ export function subscribeToFeedPosts(callback: (posts: Post[]) => void): Unsubsc
           savedByMe: (data.savedBy || []).includes(getCurrentUserEmail()),
         } as Post & { mediaUrls?: string[]; thumbnailUrl?: string });
       });
+      // Sort client-side by createdAt descending
+      posts.sort((a, b) => b.createdAt - a.createdAt);
       callback(posts);
+    }, (error) => {
+      console.error("Firestore feed subscription error:", error);
+      callback([]);
     });
   }
   // Fallback: return posts from localStorage
@@ -170,10 +174,10 @@ export function subscribeToFeedPosts(callback: (posts: Post[]) => void): Unsubsc
 /** Subscribe to user posts (real-time) */
 export function subscribeToUserPosts(username: string, callback: (posts: Post[]) => void): Unsubscribe | (() => void) {
   if (USE_FIREBASE && db) {
+    // No orderBy to avoid composite index requirement
     const q = query(
       collection(db, "posts"),
       where("authorUsername", "==", username),
-      orderBy("createdAt", "desc"),
     );
     return onSnapshot(q, (snapshot) => {
       const posts: Post[] = [];
@@ -205,7 +209,12 @@ export function subscribeToUserPosts(username: string, callback: (posts: Post[])
           savedByMe: (data.savedBy || []).includes(getCurrentUserEmail()),
         } as Post & { mediaUrls?: string[]; thumbnailUrl?: string });
       });
+      // Sort client-side by createdAt descending
+      posts.sort((a, b) => b.createdAt - a.createdAt);
       callback(posts);
+    }, (error) => {
+      console.error("Firestore user posts subscription error:", error);
+      callback([]);
     });
   }
   callback(getUserPosts(username));
@@ -440,10 +449,10 @@ export function subscribeToMessages(
   const chatId = getChatId(currentUser, otherUser);
 
   if (USE_FIREBASE && db) {
+    // Use only where clause (no orderBy) to avoid needing composite indexes
     const q = query(
       collection(db, "messages"),
       where("chatId", "==", chatId),
-      orderBy("createdAt", "asc"),
     );
     return onSnapshot(q, (snapshot) => {
       const messages: ChatMessage[] = [];
@@ -462,13 +471,110 @@ export function subscribeToMessages(
           read: data.read || false,
         });
       });
+      // Sort client-side by createdAt
+      messages.sort((a, b) => a.createdAt - b.createdAt);
       callback(messages);
+    }, (error) => {
+      console.error("Firestore messages subscription error:", error);
+      callback([]);
     });
   }
 
   // Fallback
   const messages: ChatMessage[] = JSON.parse(localStorage.getItem(`voxel_chat_${chatId}`) || "[]");
   callback(messages);
+  return () => {};
+}
+
+/** Subscribe to all conversations for a user (real-time) */
+export function subscribeToConversations(
+  username: string,
+  callback: (conversations: { username: string; lastMessage: string; lastMessageTime: number; unread: number }[]) => void,
+): Unsubscribe | (() => void) {
+  if (USE_FIREBASE && db) {
+    // Query messages where the user is either sender or receiver
+    const qSender = query(collection(db, "messages"), where("senderUsername", "==", username));
+    const qReceiver = query(collection(db, "messages"), where("receiverUsername", "==", username));
+
+    let senderResults: ChatMessage[] = [];
+    let receiverResults: ChatMessage[] = [];
+
+    const updateConversations = () => {
+      const allMessages = [...senderResults, ...receiverResults];
+      // Group by the other user
+      const convos = new Map<string, { lastMessage: string; lastMessageTime: number; unread: number }>();
+      for (const msg of allMessages) {
+        const otherUser = msg.senderUsername === username ? msg.receiverUsername : msg.senderUsername;
+        const existing = convos.get(otherUser);
+        if (!existing || msg.createdAt > existing.lastMessageTime) {
+          convos.set(otherUser, {
+            lastMessage: msg.type === "image" ? "📷 Photo" : msg.content,
+            lastMessageTime: msg.createdAt,
+            unread: msg.receiverUsername === username && !msg.read ? (existing?.unread || 0) + 1 : (existing?.unread || 0),
+          });
+        } else if (msg.receiverUsername === username && !msg.read) {
+          existing.unread++;
+        }
+      }
+      const result = Array.from(convos.entries()).map(([u, data]) => ({
+        username: u,
+        lastMessage: data.lastMessage,
+        lastMessageTime: data.lastMessageTime,
+        unread: data.unread,
+      }));
+      result.sort((a, b) => b.lastMessageTime - a.lastMessageTime);
+      callback(result);
+    };
+
+    const unsub1 = onSnapshot(qSender, (snapshot) => {
+      senderResults = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        senderResults.push({
+          id: docSnap.id,
+          chatId: data.chatId,
+          senderUsername: data.senderUsername,
+          senderName: data.senderName,
+          senderAvatar: data.senderAvatar,
+          receiverUsername: data.receiverUsername,
+          content: data.content,
+          type: data.type || "text",
+          createdAt: data.createdAt?.toMillis?.() || data.createdAt || Date.now(),
+          read: data.read || false,
+        });
+      });
+      updateConversations();
+    }, (error) => {
+      console.error("Firestore conversations (sender) error:", error);
+    });
+
+    const unsub2 = onSnapshot(qReceiver, (snapshot) => {
+      receiverResults = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        receiverResults.push({
+          id: docSnap.id,
+          chatId: data.chatId,
+          senderUsername: data.senderUsername,
+          senderName: data.senderName,
+          senderAvatar: data.senderAvatar,
+          receiverUsername: data.receiverUsername,
+          content: data.content,
+          type: data.type || "text",
+          createdAt: data.createdAt?.toMillis?.() || data.createdAt || Date.now(),
+          read: data.read || false,
+        });
+      });
+      updateConversations();
+    }, (error) => {
+      console.error("Firestore conversations (receiver) error:", error);
+    });
+
+    return () => { unsub1(); unsub2(); };
+  }
+
+  // Fallback: no conversations in localStorage mode
+  callback([]);
   return () => {};
 }
 

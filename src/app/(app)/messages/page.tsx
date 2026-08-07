@@ -41,7 +41,22 @@ import {
   Check,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { sendMessage, subscribeToMessages, uploadFile, compressImage, type ChatMessage } from "@/lib/firebase-store";
+import { sendMessage, subscribeToMessages, subscribeToConversations, uploadFile, compressImage, type ChatMessage } from "@/lib/firebase-store";
+import { getAccount } from "@/lib/accounts";
+
+/* ───────────────────────────── HELPERS ───────────────────────────── */
+
+function timeAgoShort(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  return new Date(timestamp).toLocaleDateString();
+}
 
 /* ───────────────────────────── TYPES ───────────────────────────── */
 
@@ -368,24 +383,31 @@ export default function MessagesPage() {
   const activeChat = chatsList.find((c) => c.id === selectedChat) || chatsList[0];
   const activeChatUsername = activeChat?.username || activeChat?.handle?.replace("@", "") || "";
 
+  // Track whether we've received any real-time messages for this chat
+  const [hasRealtimeData, setHasRealtimeData] = useState(false);
+
   // Subscribe to real-time messages from Firebase
   useEffect(() => {
     if (!currentUser || !activeChatUsername) {
       setRealtimeMessages([]);
+      setHasRealtimeData(false);
       return;
     }
+    setHasRealtimeData(false);
     const unsubscribe = subscribeToMessages(
       currentUser.username,
       activeChatUsername,
       (msgs) => {
         setRealtimeMessages(msgs);
+        setHasRealtimeData(true); // We got a response from Firebase (even if empty)
       },
     );
     return () => unsubscribe();
   }, [currentUser, activeChatUsername]);
 
-  // Merge real-time messages with local messages
+  // Show real-time messages from Firebase when available, otherwise show demo messages
   useEffect(() => {
+    if (!hasRealtimeData) return; // Still loading from Firebase
     if (realtimeMessages.length > 0) {
       const mapped: Message[] = realtimeMessages.map((m) => ({
         id: Date.now() + Math.random(),
@@ -396,10 +418,70 @@ export default function MessagesPage() {
         read: m.read,
       }));
       setMessages(mapped);
-    } else if (!activeChat) {
-      setMessages(conversationMessages);
+    } else {
+      // No messages in Firebase yet for this conversation - show empty state
+      setMessages([]);
     }
-  }, [realtimeMessages, currentUser, activeChat]);
+  }, [realtimeMessages, hasRealtimeData, currentUser]);
+
+  // Subscribe to all conversations for this user (real-time)
+  const [realConversations, setRealConversations] = useState<{ username: string; lastMessage: string; lastMessageTime: number; unread: number }[]>([]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const unsubscribe = subscribeToConversations(currentUser.username, (convs) => {
+      setRealConversations(convs);
+    });
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  // Merge real conversations with seed chats - real ones take priority
+  useEffect(() => {
+    if (!currentUser || realConversations.length === 0) return;
+
+    // Get account info for real conversation users
+    const merged = [...initialChats];
+    let nextId = 100;
+
+    for (const conv of realConversations) {
+      // Skip if this user is already in the chat list
+      const existingIdx = merged.findIndex((c) => c.username === conv.username);
+      const account = getAccount(conv.username);
+
+      if (existingIdx >= 0) {
+        // Update existing chat with real data
+        merged[existingIdx] = {
+          ...merged[existingIdx],
+          lastMessage: conv.lastMessage,
+          unread: conv.unread,
+          time: timeAgoShort(conv.lastMessageTime),
+        };
+      } else {
+        // Add new chat
+        merged.unshift({
+          id: nextId++,
+          name: account?.name || conv.username,
+          handle: `@${conv.username}`,
+          username: conv.username,
+          lastMessage: conv.lastMessage,
+          time: timeAgoShort(conv.lastMessageTime),
+          unread: conv.unread,
+          online: false,
+          verified: account?.verified || false,
+          seller: account?.isSeller || false,
+          avatar: "from-vox-purple to-vox-pink",
+          avatarUrl: account?.avatar || "",
+          role: account?.isSeller ? "Seller" : "",
+          followers: account?.followers || "0",
+          likes: "0",
+        });
+      }
+    }
+
+    // Sort: real conversations first (by lastMessageTime), then seed chats
+    setChatsList(merged);
+  }, [realConversations, currentUser]);
+
   const [callState, setCallState] = useState<{ active: boolean; type: "voice" | "video"; duration: number }>({ active: false, type: "voice", duration: 0 });
   const [callMuted, setCallMuted] = useState(false);
   const [callSpeaker, setCallSpeaker] = useState(false);
