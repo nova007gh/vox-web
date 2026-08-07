@@ -3,25 +3,345 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #05060B;
+  --foreground: #FFFFFF;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --nav-h: 4rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  overflow-x: hidden;
+  /* App-like: prevent overscroll bounce */
+  overscroll-behavior-y: none;
+  /* App-like: prevent text selection on UI */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+/* Allow text selection in inputs/textareas/contenteditable */
+input, textarea, [contenteditable], [role="textbox"], p, h1, h2, h3, h4, h5, h6, span, li, article, section {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* App-like: prevent input zoom on iOS (font-size >= 16px) */
+input, textarea, select {
+  font-size: 16px;
+}
+
+/* App-like: smooth momentum scrolling on mobile */
+.scroll-container, [class*="overflow-y-auto"], [class*="overflow-auto"] {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* App-like: hide scrollbars everywhere on mobile */
+@media (max-width: 1023px) {
+  ::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
   }
+  * {
+    scrollbar-width: none;
+  }
+}
+
+/* Safe area utilities */
+.safe-top {
+  padding-top: var(--safe-top);
+}
+.safe-bottom {
+  padding-bottom: var(--safe-bottom);
+}
+.safe-x {
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Custom scrollbar — desktop only */
+@media (min-width: 1024px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #05060B;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(124, 44, 255, 0.4);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(124, 44, 255, 0.7);
+  }
+}
+
+/* Glass effect */
+@layer components {
+  .glass {
+    background: rgba(16, 20, 38, 0.74);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-strong {
+    background: rgba(16, 20, 38, 0.92);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .gradient-border {
+    position: relative;
+    border: none;
+  }
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, #7C2CFF, #FF2C91, #FF8A34);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, #7C2CFF, #FF2C91, #FF8A34);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 40px rgba(124, 44, 255, 0.3), 0 0 80px rgba(124, 44, 255, 0.1);
+  }
+
+  .glow-pink {
+    box-shadow: 0 0 40px rgba(255, 44, 145, 0.3), 0 0 80px rgba(255, 44, 145, 0.1);
+  }
+
+  .glow-orange {
+    box-shadow: 0 0 40px rgba(255, 138, 52, 0.3), 0 0 80px rgba(255, 138, 52, 0.1);
+  }
+
+  .btn-gradient {
+    background: linear-gradient(135deg, #FF8A34, #FF2C91, #7C2CFF);
+    transition: all 0.3s ease;
+  }
+  .btn-gradient:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(255, 44, 145, 0.4);
+  }
+
+  .card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-4px);
+    border-color: rgba(124, 44, 255, 0.4);
+    box-shadow: 0 8px 32px rgba(124, 44, 255, 0.15);
+  }
+  /* App-like: active press feedback on mobile */
+  @media (max-width: 1023px) {
+    .card-hover:active {
+      transform: scale(0.97);
+    }
+    .btn-gradient:active {
+      transform: scale(0.96);
+    }
+    button:active, a:active {
+      opacity: 0.7;
+    }
+  }
+
+  /* App-like: touch ripple feedback */
+  .touch-feedback {
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+  .touch-feedback:active {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+
+  .nav-link {
+    @apply text-vox-muted hover:text-white transition-colors duration-200 text-sm font-medium;
+  }
+
+  .nav-link-active {
+    @apply text-white;
+  }
+}
+
+/* Animations */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* Phone mockup glow */
+.phone-glow {
+  filter: drop-shadow(0 0 30px rgba(124, 44, 255, 0.3)) drop-shadow(0 0 60px rgba(255, 44, 145, 0.2));
+}
+
+/* Input styles */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #FFFFFF;
+  -webkit-box-shadow: 0 0 0px 1000px #101426 inset;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* ═══════════════ APP-LIKE MOBILE EXPERIENCE ═══════════════ */
+
+/* App-like: use 100dvh for proper mobile viewport (handles browser chrome) */
+@supports (height: 100dvh) {
+  .app-height {
+    height: 100dvh;
+  }
+  .app-min-height {
+    min-height: 100dvh;
+  }
+}
+
+/* App-like: no overscroll on the body, only inner containers scroll */
+html, body {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: manipulation;
+}
+
+/* Allow scrolling within scroll containers */
+.scroll-y {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+
+/* App-like: hide scrollbar but keep scrollable */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* App-like: smooth page transitions */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: page-enter 0.25s ease-out;
+}
+
+/* App-like: bottom sheet animation */
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.sheet-up {
+  animation: sheet-up 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* App-like: fade in */
+@keyframes app-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.app-fade {
+  animation: app-fade 0.3s ease-out;
+}
+
+/* App-like: scale in */
+@keyframes app-scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.app-scale-in {
+  animation: app-scale-in 0.2s ease-out;
+}
+
+/* App-like: slide in from right (for detail views) */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.slide-in-right {
+  animation: slide-in-right 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Desktop: allow normal scrolling (override fixed body) */
+@media (min-width: 1024px) {
+  html, body {
+    position: static;
+    overflow: auto;
+  }
+}
+
+/* App-like: prevent pull-to-refresh on mobile */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* App-like: focus styles for accessibility */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(124, 44, 255, 0.5);
+  outline-offset: 2px;
+}
+
+/* App-like: placeholder styling */
+input::placeholder, textarea::placeholder {
+  color: #A8ADC0;
+  opacity: 0.6;
+}
+
+/* App-like: image rendering optimization */
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
 }
