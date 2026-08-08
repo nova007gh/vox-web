@@ -231,7 +231,7 @@ export default function AuthPage() {
 
   /* ────────────────────── render ────────────────────── */
   return (
-    <div className="min-h-screen app-min-height flex bg-vox-bg overflow-hidden">
+    <div className="h-screen app-height flex bg-vox-bg overflow-hidden">
       {/* ═══════════════════  LEFT SIDE  ═══════════════════ */}
       <div className="hidden lg:flex lg:w-[52%] xl:w-[55%] relative flex-col justify-between p-10 xl:p-14 overflow-hidden">
         {/* background gradients */}
@@ -407,7 +407,7 @@ export default function AuthPage() {
       </div>
 
       {/* ═══════════════════  RIGHT SIDE  ═══════════════════ */}
-      <div className="flex-1 flex justify-center px-4 sm:px-8 safe-top safe-bottom py-8 lg:py-6 overflow-y-auto relative">
+      <div className="flex-1 flex justify-center px-4 sm:px-8 safe-top safe-bottom py-6 lg:py-6 overflow-y-auto scroll-y relative">
         {/* mobile background glows */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden lg:hidden">
           <div className="absolute -top-20 -right-20 w-[400px] h-[400px] rounded-full bg-vox-purple/15 blur-[120px] animate-pulse-glow" />
@@ -418,7 +418,7 @@ export default function AuthPage() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
-          className="w-full max-w-md my-auto relative z-10"
+          className="w-full max-w-md lg:my-auto relative z-10"
         >
           {/* panel wrapper */}
           <div className="glass-strong rounded-3xl p-6 sm:p-8">
@@ -919,7 +919,7 @@ export default function AuthPage() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             onClick={(e) => e.stopPropagation()}
-            className="glass rounded-3xl p-6 sm:p-8 max-w-sm w-full"
+            className="glass rounded-3xl p-6 sm:p-8 max-w-sm w-full max-h-[85vh] overflow-y-auto scroll-y"
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-6">

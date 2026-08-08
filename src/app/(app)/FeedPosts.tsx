@@ -35,7 +35,7 @@ function VideoPlayer({ post }: { post: Post }) {
 
   useEffect(() => {
     // Try to load video from IndexedDB
-    const mediaId = post.mediaIds.find((id) => id.startsWith("idb_") || !id.startsWith("file_"));
+    const mediaId = post.mediaIds[0];
     if (mediaId) {
       getFileURL(mediaId).then((url) => {
         if (url) setVideoUrl(url);
@@ -72,6 +72,25 @@ function VideoPlayer({ post }: { post: Post }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Image viewer that loads full image from IndexedDB with thumbnail fallback */
+function ImageViewer({ post }: { post: Post }) {
+  const [fullUrl, setFullUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const mediaId = post.mediaIds[0];
+    if (mediaId) {
+      getFileURL(mediaId).then((url) => {
+        if (url) setFullUrl(url);
+      }).catch(() => {});
+    }
+  }, [post.mediaIds]);
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={fullUrl || post.mediaUrls?.[0] || ""} alt={post.caption} className="w-full max-h-[400px] object-contain" />
   );
 }
 
@@ -293,8 +312,7 @@ export default function FeedPosts() {
                   selectedPost.type === "video" ? (
                     <VideoPlayer post={selectedPost} />
                   ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={getMediaUrl(selectedPost)} alt={selectedPost.caption} className="w-full max-h-[400px] object-contain" />
+                    <ImageViewer post={selectedPost} />
                   )
                 ) : (
                   <div className="w-full aspect-[9/16] flex items-center justify-center">

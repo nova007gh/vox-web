@@ -471,7 +471,7 @@ export async function compressImage(
  */
 export async function compressImageForFirestore(
   file: Blob,
-  maxBytes: number = 700000,
+  maxBytes: number = 500000,
 ): Promise<Blob> {
   let currentDim = 720;
   let currentQuality = 0.7;

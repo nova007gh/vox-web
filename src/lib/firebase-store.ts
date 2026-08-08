@@ -83,13 +83,18 @@ export async function createPost(data: {
   };
 
   if (USE_FIREBASE && db) {
-    const docRef = await addDoc(collection(db, "posts"), {
-      ...post,
-      mediaUrls: data.mediaUrls,
-      thumbnailUrl: data.thumbnailUrl || null,
-      createdAt: serverTimestamp(),
-    });
-    return { ...post, id: docRef.id };
+    try {
+      const docRef = await addDoc(collection(db, "posts"), {
+        ...post,
+        mediaUrls: data.mediaUrls,
+        thumbnailId: data.thumbnailId || null,
+        thumbnailUrl: data.thumbnailUrl || null,
+        createdAt: serverTimestamp(),
+      });
+      return { ...post, id: docRef.id };
+    } catch (err) {
+      console.warn("Firebase write failed, falling back to localStorage:", err);
+    }
   }
 
   // Fallback to localStorage
@@ -159,12 +164,16 @@ export function subscribeToFeedPosts(callback: (posts: Post[]) => void): Unsubsc
           savedByMe: (data.savedBy || []).includes(getCurrentUserEmail()),
         } as Post & { mediaUrls?: string[]; thumbnailUrl?: string });
       });
+      // Merge with localStorage posts (in case some were saved locally after Firebase failures)
+      const localPosts = getFeedPosts();
+      const localIds = new Set(localPosts.map((p) => p.id));
+      const merged = [...posts.filter((p) => !localIds.has(p.id)), ...localPosts];
       // Sort client-side by createdAt descending
-      posts.sort((a, b) => b.createdAt - a.createdAt);
-      callback(posts);
+      merged.sort((a, b) => b.createdAt - a.createdAt);
+      callback(merged);
     }, (error) => {
       console.error("Firestore feed subscription error:", error);
-      callback([]);
+      callback(getFeedPosts());
     });
   }
   // Fallback: return posts from localStorage
@@ -210,12 +219,16 @@ export function subscribeToUserPosts(username: string, callback: (posts: Post[])
           savedByMe: (data.savedBy || []).includes(getCurrentUserEmail()),
         } as Post & { mediaUrls?: string[]; thumbnailUrl?: string });
       });
+      // Merge with localStorage posts (in case some were saved locally after Firebase failures)
+      const localPosts = getUserPosts(username);
+      const localIds = new Set(localPosts.map((p) => p.id));
+      const merged = [...posts.filter((p) => !localIds.has(p.id)), ...localPosts];
       // Sort client-side by createdAt descending
-      posts.sort((a, b) => b.createdAt - a.createdAt);
-      callback(posts);
+      merged.sort((a, b) => b.createdAt - a.createdAt);
+      callback(merged);
     }, (error) => {
       console.error("Firestore user posts subscription error:", error);
-      callback([]);
+      callback(getUserPosts(username));
     });
   }
   callback(getUserPosts(username));

@@ -230,26 +230,28 @@ export default function CreatePage() {
       let thumbnailId: string | undefined;
       let thumbnailUrl: string | undefined;
       const isVideo = selectedFiles.length > 0 && selectedFiles[0].type.startsWith("video/");
+      const { storeFile } = await import("@/lib/content-store");
 
       for (const file of selectedFiles) {
         if (file.type.startsWith("image/")) {
-          // Use Firestore-safe compression (iteratively reduces size to fit <700KB)
-          const compressed = await compressImageForFirestore(file, 700000);
-          const { url, id } = await uploadFile(compressed);
-          mediaIds.push(id);
-          mediaUrls.push(url);
+          // Store full image in IndexedDB (no size limit)
+          const imageId = await storeFile(file);
+          mediaIds.push(imageId);
+          // Create a small thumbnail for feed display (fits in Firestore/localStorage)
+          const thumb = await compressImageForFirestore(file, 150000);
+          const { url: thumbUrl } = await uploadFile(thumb);
+          mediaUrls.push(thumbUrl);
         } else if (file.type.startsWith("video/")) {
           // For videos: store thumbnail in Firestore (small), video in IndexedDB (local)
           const thumb = await generateVideoThumbnail(file);
           if (thumb) {
-            const compressedThumb = await compressImageForFirestore(thumb, 500000);
+            const compressedThumb = await compressImageForFirestore(thumb, 150000);
             const { url: thumbUrl, id: thumbId } = await uploadFile(compressedThumb);
             thumbnailId = thumbId;
             thumbnailUrl = thumbUrl;
             mediaUrls.push(thumbUrl); // Use thumbnail as media URL for feed display
           }
           // Store video locally in IndexedDB for playback on same device
-          const { storeFile } = await import("@/lib/content-store");
           const videoId = await storeFile(file);
           mediaIds.push(videoId);
         }
@@ -304,11 +306,16 @@ export default function CreatePage() {
   const handleAdImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const compressed = await compressImageForFirestore(file, 500000);
-    const { url, id } = await uploadFile(compressed);
-    setAdImageId(id);
-    setAdImageUrl(url);
-    setAdImageUrl(URL.createObjectURL(compressed));
+    setUploadError(null);
+    try {
+      const compressed = await compressImageForFirestore(file, 500000);
+      const { url, id } = await uploadFile(compressed);
+      setAdImageId(id);
+      setAdImageUrl(url);
+    } catch (err) {
+      console.error("Ad image upload error:", err);
+      setUploadError("Failed to upload image. Please try a smaller file.");
+    }
   };
 
   // Publish ad to marketplace
@@ -392,7 +399,7 @@ export default function CreatePage() {
           <h1 className="text-lg font-bold text-white">Create</h1>
           <button
             onClick={() => router.back()}
-            className="w-9 h-9 rounded-full glass touch-feedback flex items-center justify-center"
+            className="w-10 h-10 rounded-full glass touch-feedback flex items-center justify-center"
           >
             <X className="w-4.5 h-4.5 text-white" />
           </button>
@@ -500,10 +507,10 @@ export default function CreatePage() {
                 onClick={() => handleToolClick(tool)}
                 className="glass rounded-2xl p-3 sm:p-4 flex flex-col items-center gap-2 touch-feedback card-hover group"
               >
-                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${tool.gradient} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${tool.gradient} flex items-center justify-center group-hover:scale-110 transition-transform`}>
                   <span className="text-xl">{tool.icon}</span>
                 </div>
-                <span className="text-[11px] sm:text-xs font-medium text-vox-muted group-hover:text-white transition-colors leading-tight text-center">{tool.label}</span>
+                <span className="text-xs font-medium text-vox-muted group-hover:text-white transition-colors leading-tight text-center">{tool.label}</span>
               </motion.button>
             ))}
           </div>
@@ -513,12 +520,12 @@ export default function CreatePage() {
         <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.35 }}>
           <div className="glass-strong rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-vox-purple/30 to-vox-cyan/30 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-vox-purple/30 to-vox-cyan/30 flex items-center justify-center">
                 <Wand2 className="w-4 h-4 text-vox-cyan" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-white">AI Publishing Check</h3>
-                <p className="text-[11px] text-vox-muted">Auto-review before you post</p>
+                <p className="text-xs text-vox-muted">Auto-review before you post</p>
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -541,7 +548,7 @@ export default function CreatePage() {
                     <check.icon className={`w-5 h-5 ${check.color} group-hover:scale-110 transition-transform`} />
                     <div>
                       <p className="text-xs font-semibold text-white">{check.label}</p>
-                      <p className="text-[10px] text-vox-muted leading-tight mt-0.5">{check.desc}</p>
+                      <p className="text-[11px] text-vox-muted leading-tight mt-0.5">{check.desc}</p>
                     </div>
                   </motion.button>
                 );
@@ -605,7 +612,7 @@ export default function CreatePage() {
               </span>
               <span className="text-white text-lg font-mono font-bold">{formatTime(recordTime)}</span>
             </div>
-            <button onClick={() => setIsRecording(false)} className="absolute top-6 right-6 w-9 h-9 rounded-full glass touch-feedback flex items-center justify-center text-white/60 hover:text-white">
+            <button onClick={() => setIsRecording(false)} className="absolute top-6 right-6 w-10 h-10 rounded-full glass touch-feedback flex items-center justify-center text-white/60 hover:text-white">
               <X className="w-5 h-5" />
             </button>
             <div className="w-full max-w-sm aspect-[9/16] rounded-3xl bg-gradient-to-br from-vox-purple/20 via-vox-bg to-vox-pink/20 flex items-center justify-center relative overflow-hidden">
@@ -646,7 +653,7 @@ export default function CreatePage() {
                 <h3 className="text-lg sm:text-xl font-bold text-white">
                   {selectedFiles.length > 0 && selectedFiles[0].type.startsWith("video/") ? "Publish Video" : "Publish Post"}
                 </h3>
-                <button onClick={() => setShowPublish(false)} className="w-9 h-9 rounded-full glass touch-feedback flex items-center justify-center text-vox-muted hover:text-white"><X className="w-4.5 h-4.5" /></button>
+                <button onClick={() => setShowPublish(false)} className="w-10 h-10 rounded-full glass touch-feedback flex items-center justify-center text-vox-muted hover:text-white"><X className="w-4.5 h-4.5" /></button>
               </div>
 
               {/* Preview */}
@@ -757,11 +764,11 @@ export default function CreatePage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass-strong sheet-up rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4"
+              className="glass-strong sheet-up rounded-3xl p-4 sm:p-6 w-full max-w-md space-y-4 max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-lg sm:text-xl font-bold text-white">{panelContent[activePanel].title}</h3>
-                <button onClick={() => setActivePanel(null)} className="w-9 h-9 rounded-full glass touch-feedback flex items-center justify-center text-vox-muted hover:text-white"><X className="w-4.5 h-4.5" /></button>
+                <button onClick={() => setActivePanel(null)} className="w-10 h-10 rounded-full glass touch-feedback flex items-center justify-center text-vox-muted hover:text-white"><X className="w-4.5 h-4.5" /></button>
               </div>
               {panelContent[activePanel].content}
             </motion.div>
@@ -812,12 +819,12 @@ export default function CreatePage() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-vox-orange/30 to-vox-pink/30 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-vox-orange/30 to-vox-pink/30 flex items-center justify-center">
                     <ShoppingBag className="w-5 h-5 text-vox-orange" />
                   </div>
                   <h3 className="text-lg sm:text-xl font-bold text-white">Post an Ad</h3>
                 </div>
-                <button onClick={() => setShowAdModal(false)} className="w-9 h-9 rounded-full glass touch-feedback flex items-center justify-center text-vox-muted hover:text-white">
+                <button onClick={() => setShowAdModal(false)} className="w-10 h-10 rounded-full glass touch-feedback flex items-center justify-center text-vox-muted hover:text-white">
                   <X className="w-4.5 h-4.5" />
                 </button>
               </div>
@@ -831,7 +838,7 @@ export default function CreatePage() {
                     <img src={adImageUrl} alt="Ad preview" className="w-full h-48 object-cover rounded-2xl" />
                     <button
                       onClick={() => { if (adImageUrl) URL.revokeObjectURL(adImageUrl); setAdImageUrl(null); setAdImageId(null); }}
-                      className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center text-white"
+                      className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 flex items-center justify-center text-white"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -839,7 +846,7 @@ export default function CreatePage() {
                 ) : (
                   <button
                     onClick={() => adFileInputRef.current?.click()}
-                    className="w-full border-2 border-dashed border-white/10 rounded-2xl p-8 text-center touch-feedback hover:border-vox-purple/30 transition"
+                    className="w-full border-2 border-dashed border-white/10 rounded-2xl p-6 sm:p-8 text-center touch-feedback hover:border-vox-purple/30 transition"
                   >
                     <ImageIcon className="w-10 h-10 mx-auto text-vox-muted mb-2" />
                     <p className="text-sm text-white font-medium">Upload product image</p>
@@ -940,7 +947,7 @@ export default function CreatePage() {
         accept="video/*,image/*"
         multiple
         onChange={handleFileSelect}
-        className="hidden"
+        className="sr-only"
       />
       <input
         ref={photoInputRef}
@@ -948,14 +955,14 @@ export default function CreatePage() {
         accept="image/*"
         multiple
         onChange={handleFileSelect}
-        className="hidden"
+        className="sr-only"
       />
       <input
         ref={adFileInputRef}
         type="file"
         accept="image/*"
         onChange={handleAdImageSelect}
-        className="hidden"
+        className="sr-only"
       />
     </div>
   );

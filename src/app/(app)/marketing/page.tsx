@@ -110,7 +110,7 @@ export default function MarketingPage() {
 
   return (
     <div className="h-full overflow-y-auto scrollbar-hide">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 pb-24 lg:pb-8 space-y-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 pb-16 lg:pb-8 space-y-6">
         {/* ═══════ HEADER ═══════ */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -691,7 +691,7 @@ function CampaignModal({ onClose, showToast }: { onClose: () => void; showToast:
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-strong rounded-3xl p-5 w-full max-w-md space-y-4"
+        className="glass-strong rounded-3xl p-5 w-full max-w-md space-y-4 max-h-[85vh] overflow-y-auto scrollbar-hide"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -794,7 +794,7 @@ function BoostModal({ onClose, showToast }: { onClose: () => void; showToast: (m
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-strong rounded-3xl p-5 w-full max-w-md space-y-4"
+        className="glass-strong rounded-3xl p-5 w-full max-w-md space-y-4 max-h-[85vh] overflow-y-auto scrollbar-hide"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

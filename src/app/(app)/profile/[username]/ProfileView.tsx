@@ -119,17 +119,17 @@ export default function ProfileView({ username }: ProfileViewProps) {
         <div className="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
           <button
             onClick={() => router.back()}
-            className="w-10 h-10 rounded-full glass flex items-center justify-center text-white hover:bg-white/10 transition"
+            className="w-11 h-11 rounded-full glass flex items-center justify-center text-white hover:bg-white/10 transition"
             aria-label="Go back"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="text-white font-semibold text-sm truncate max-w-[180px]">
+          <span className="text-white font-semibold text-sm truncate max-w-[150px] sm:max-w-[180px]">
             @{account.username}
           </span>
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="w-10 h-10 rounded-full glass flex items-center justify-center text-white hover:bg-white/10 transition"
+            className="w-11 h-11 rounded-full glass flex items-center justify-center text-white hover:bg-white/10 transition"
             aria-label="More options"
           >
             <MoreHorizontal className="w-5 h-5" />
@@ -208,14 +208,14 @@ export default function ProfileView({ username }: ProfileViewProps) {
           <div className="flex items-center gap-2 mb-2">
             <button
               onClick={handleShare}
-              className="w-10 h-10 rounded-full glass flex items-center justify-center text-white hover:bg-white/10 transition"
+              className="w-11 h-11 rounded-full glass flex items-center justify-center text-white hover:bg-white/10 transition"
               aria-label="Share"
             >
               <Share2 className="w-4 h-4" />
             </button>
             <button
               onClick={() => showToast("More options coming soon")}
-              className="w-10 h-10 rounded-full glass flex items-center justify-center text-white hover:bg-white/10 transition"
+              className="w-11 h-11 rounded-full glass flex items-center justify-center text-white hover:bg-white/10 transition"
               aria-label="More"
             >
               <MoreHorizontal className="w-4 h-4" />

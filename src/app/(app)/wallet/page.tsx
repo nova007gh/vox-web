@@ -704,7 +704,7 @@ export default function WalletPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl p-6 w-full max-w-md space-y-4"
+              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white">Add Money</h3>
@@ -757,7 +757,7 @@ export default function WalletPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl p-6 w-full max-w-md space-y-4"
+              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white">Send Money</h3>
@@ -939,7 +939,7 @@ export default function WalletPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl p-6 w-full max-w-md space-y-4"
+              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -994,7 +994,7 @@ export default function WalletPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl p-6 w-full max-w-md space-y-4"
+              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -1043,7 +1043,7 @@ export default function WalletPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl p-6 w-full max-w-md space-y-4"
+              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -1120,7 +1120,7 @@ export default function WalletPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 text-center"
+              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 text-center max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white">Apple Pay</h3>
@@ -1156,7 +1156,7 @@ export default function WalletPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 text-center"
+              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 text-center max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white">Google Pay</h3>
@@ -1208,7 +1208,7 @@ export default function WalletPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 text-center"
+              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 text-center max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -1262,7 +1262,7 @@ export default function WalletPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl p-6 w-full max-w-md space-y-4"
+              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -1328,7 +1328,7 @@ export default function WalletPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl p-6 w-full max-w-md space-y-4"
+              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -1389,7 +1389,7 @@ export default function WalletPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl p-6 w-full max-w-md space-y-4"
+              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">

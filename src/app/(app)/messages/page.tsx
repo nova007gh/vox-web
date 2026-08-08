@@ -1033,7 +1033,7 @@ export default function MessagesPage() {
                   initial={{ opacity: 0, y: -10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                  className="absolute right-0 top-11 z-50 glass rounded-xl p-2 min-w-[180px] shadow-2xl"
+                  className="absolute right-0 top-11 z-50 glass rounded-xl p-2 min-w-[160px] sm:min-w-[180px] shadow-2xl"
                 >
                   {optionMenuItems.map((item) => (
                     <button
@@ -1343,9 +1343,9 @@ export default function MessagesPage() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 10 }}
-                    className="absolute bottom-12 right-0 z-20 glass rounded-2xl p-3 shadow-2xl max-w-[260px]"
+                    className="absolute bottom-12 right-0 z-20 glass rounded-2xl p-3 shadow-2xl max-w-[90vw] sm:max-w-[260px]"
                   >
-                    <div className="grid grid-cols-8 gap-1">
+                    <div className="grid grid-cols-6 sm:grid-cols-8 gap-1">
                       {["😀","😂","🥰","😍","😎","🤩","😘","🥳","😢","😡","👍","👎","❤️","🔥","🎉","💯","🙏","💪","✨","🌟","🎁","🌹","💎","👑","🎵","🎶","💃","🕺","🚀","🏆","🤗","😴"].map((emoji) => (
                         <button
                           key={emoji}
@@ -1369,7 +1369,7 @@ export default function MessagesPage() {
                     exit={{ opacity: 0, y: 10 }}
                     className="absolute bottom-12 right-0 z-20 glass rounded-2xl p-3 shadow-2xl"
                   >
-                    <div className="grid grid-cols-2 gap-2 min-w-[180px]">
+                    <div className="grid grid-cols-2 gap-2 min-w-[160px] sm:min-w-[180px]">
                       {attachOptions.map((opt) => (
                         <button
                           key={opt.label}
@@ -1611,7 +1611,7 @@ export default function MessagesPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl p-6 w-full max-w-md space-y-4"
+              className="glass rounded-3xl p-6 w-full max-w-md space-y-4 max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white">New Message</h3>
@@ -1693,7 +1693,7 @@ export default function MessagesPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl p-6 w-full max-w-sm space-y-4 text-center"
+              className="glass rounded-3xl p-6 w-full max-w-sm space-y-4 text-center max-h-[85vh] overflow-y-auto scrollbar-hide"
             >
               <div className="w-14 h-14 rounded-full bg-vox-danger/20 flex items-center justify-center mx-auto">
                 <Flag className="w-7 h-7 text-vox-danger" />
@@ -1734,7 +1734,7 @@ export default function MessagesPage() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", stiffness: 400, damping: 35 }}
-              className="glass-strong rounded-3xl p-5 w-full max-w-sm"
+              className="glass-strong rounded-3xl p-5 w-full max-w-sm max-h-[85vh] overflow-y-auto scrollbar-hide"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
@@ -1782,7 +1782,7 @@ export default function MessagesPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="glass-strong rounded-3xl p-6 w-full max-w-sm"
+              className="glass-strong rounded-3xl p-6 w-full max-w-sm max-h-[85vh] overflow-y-auto scrollbar-hide"
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-base font-bold text-white mb-2">Block User?</h3>

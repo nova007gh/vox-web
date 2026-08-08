@@ -547,7 +547,7 @@ export default function MarketplacePage() {
                     {/* Heart */}
                     <button
                       onClick={(e) => { e.stopPropagation(); toggleSave(product.id); }}
-                      className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center transition-colors hover:bg-black/50"
+                      className="absolute top-2.5 right-2.5 w-9 h-9 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center transition-colors hover:bg-black/50"
                     >
                       <Heart
                         className={`w-4 h-4 transition-colors ${
@@ -740,7 +740,7 @@ export default function MarketplacePage() {
                 <h3 className="text-base font-bold text-white">Product Details</h3>
                 <button
                   onClick={() => setSelectedProduct(null)}
-                  className="w-8 h-8 rounded-full glass flex items-center justify-center"
+                  className="w-10 h-10 rounded-full glass flex items-center justify-center"
                 >
                   <X className="w-4 h-4 text-vox-muted" />
                 </button>

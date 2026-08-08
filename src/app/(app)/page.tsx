@@ -212,7 +212,7 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-white">{comments.length} Comments</h3>
-          <button onClick={onClose} className="w-8 h-8 rounded-full glass flex items-center justify-center touch-feedback">
+          <button onClick={onClose} className="w-10 h-10 rounded-full glass flex items-center justify-center touch-feedback">
             <X className="w-4 h-4 text-vox-muted" />
           </button>
         </div>
@@ -953,12 +953,12 @@ export default function HomeFeed() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", stiffness: 400, damping: 35 }}
-              className="glass-strong rounded-3xl p-5 w-full max-w-sm"
+              className="glass-strong rounded-3xl p-5 w-full max-w-sm max-h-[85vh] overflow-y-auto scrollbar-hide"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-bold text-white">Send a Gift</h3>
-                <button onClick={() => setShowGiftModal(false)} className="w-8 h-8 rounded-full glass flex items-center justify-center touch-feedback">
+                <button onClick={() => setShowGiftModal(false)} className="w-10 h-10 rounded-full glass flex items-center justify-center touch-feedback">
                   <X className="w-4 h-4 text-vox-muted" />
                 </button>
               </div>

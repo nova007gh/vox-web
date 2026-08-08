@@ -814,7 +814,7 @@ export default function ProfilePage() {
                 <h3 className="text-base font-bold text-white">Edit Profile</h3>
                 <button
                   onClick={() => setShowEditModal(false)}
-                  className="w-8 h-8 rounded-full glass flex items-center justify-center touch-feedback"
+                  className="w-10 h-10 rounded-full glass flex items-center justify-center touch-feedback"
                 >
                   <X className="w-4 h-4 text-vox-muted" />
                 </button>
@@ -831,7 +831,7 @@ export default function ProfilePage() {
                     <button
                       onClick={() => avatarInputRef.current?.click()}
                       disabled={uploadingAvatar}
-                      className="absolute bottom-0 right-0 w-7 h-7 rounded-full btn-gradient flex items-center justify-center touch-feedback disabled:opacity-60"
+                      className="absolute bottom-0 right-0 w-9 h-9 rounded-full btn-gradient flex items-center justify-center touch-feedback disabled:opacity-60"
                     >
                       {uploadingAvatar ? (
                         <div className="w-3.5 h-3.5 rounded-full border border-white/30 border-t-white animate-spin" />
@@ -915,7 +915,7 @@ export default function ProfilePage() {
                 <h3 className="text-base font-bold text-white">Settings</h3>
                 <button
                   onClick={() => setShowSettingsModal(false)}
-                  className="w-8 h-8 rounded-full glass flex items-center justify-center touch-feedback"
+                  className="w-10 h-10 rounded-full glass flex items-center justify-center touch-feedback"
                 >
                   <X className="w-4 h-4 text-vox-muted" />
                 </button>
@@ -1018,7 +1018,7 @@ export default function ProfilePage() {
                 <h3 className="text-base font-bold text-white">Help &amp; Support</h3>
                 <button
                   onClick={() => setShowHelpModal(false)}
-                  className="w-8 h-8 rounded-full glass flex items-center justify-center touch-feedback"
+                  className="w-10 h-10 rounded-full glass flex items-center justify-center touch-feedback"
                 >
                   <X className="w-4 h-4 text-vox-muted" />
                 </button>
@@ -1169,7 +1169,7 @@ export default function ProfilePage() {
                 <h3 className="text-base font-bold text-white">Analytics</h3>
                 <button
                   onClick={() => setShowAnalyticsModal(false)}
-                  className="w-8 h-8 rounded-full glass flex items-center justify-center touch-feedback"
+                  className="w-10 h-10 rounded-full glass flex items-center justify-center touch-feedback"
                 >
                   <X className="w-4 h-4 text-vox-muted" />
                 </button>
@@ -1265,7 +1265,7 @@ export default function ProfilePage() {
                 <h3 className="text-base font-bold text-white">Subscriptions</h3>
                 <button
                   onClick={() => setShowSubsModal(false)}
-                  className="w-8 h-8 rounded-full glass flex items-center justify-center touch-feedback"
+                  className="w-10 h-10 rounded-full glass flex items-center justify-center touch-feedback"
                 >
                   <X className="w-4 h-4 text-vox-muted" />
                 </button>
@@ -1323,7 +1323,7 @@ export default function ProfilePage() {
                 <h3 className="text-base font-bold text-white">Copyright</h3>
                 <button
                   onClick={() => setShowCopyrightModal(false)}
-                  className="w-8 h-8 rounded-full glass flex items-center justify-center touch-feedback"
+                  className="w-10 h-10 rounded-full glass flex items-center justify-center touch-feedback"
                 >
                   <X className="w-4 h-4 text-vox-muted" />
                 </button>
@@ -1385,7 +1385,7 @@ export default function ProfilePage() {
                 <h3 className="text-base font-bold text-white">Account Protection</h3>
                 <button
                   onClick={() => setShowProtectionModal(false)}
-                  className="w-8 h-8 rounded-full glass flex items-center justify-center touch-feedback"
+                  className="w-10 h-10 rounded-full glass flex items-center justify-center touch-feedback"
                 >
                   <X className="w-4 h-4 text-vox-muted" />
                 </button>

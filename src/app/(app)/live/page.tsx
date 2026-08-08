@@ -449,13 +449,13 @@ export default function LivePage() {
                   </div>
                   <button
                     onClick={handleLike}
-                    className={`w-8 h-8 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors touch-feedback ${liked ? "bg-vox-pink/30" : "bg-white/10 hover:bg-white/20"}`}
+                    className={`w-10 h-10 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors touch-feedback ${liked ? "bg-vox-pink/30" : "bg-white/10 hover:bg-white/20"}`}
                   >
                     <Heart className={`w-4 h-4 ${liked ? "text-vox-pink fill-vox-pink" : "text-white"}`} />
                   </button>
                   <button
                     onClick={() => setShowGifts(!showGifts)}
-                    className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-colors touch-feedback"
+                    className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-colors touch-feedback"
                   >
                     <Gift className="w-4 h-4 text-white" />
                   </button>
@@ -470,7 +470,7 @@ export default function LivePage() {
                       exit={{ height: 0, opacity: 0 }}
                       className="overflow-hidden mt-2"
                     >
-                      <div className="grid grid-cols-6 gap-2 bg-white/5 rounded-2xl p-2">
+                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 bg-white/5 rounded-2xl p-2">
                         {giftTiers.map((gift) => (
                           <button
                             key={gift.name}
