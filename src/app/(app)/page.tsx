@@ -37,6 +37,7 @@ import {
   timeAgo,
   formatCount,
   type Post,
+  type Comment,
 } from "@/lib/firebase-store";
 import { useAuth } from "@/lib/auth-context";
 import { accounts } from "@/lib/accounts";
@@ -171,29 +172,26 @@ function FeedVideoPlayer({ post, isPlaying, isMuted }: { post: Post; isPlaying: 
 /* ═══════════════════════════════════════════
    COMMENT MODAL
    ═══════════════════════════════════════════ */
-function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
+function CommentModal({ post, onClose, onUpdate }: { post: Post; onClose: () => void; onUpdate?: (postId: string, comment: Comment) => void }) {
   const { currentUser } = useAuth();
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState(post.comments || []);
 
   const handleSend = async () => {
-    if (!commentText.trim() || !currentUser) return;
-    const newComment = {
+    const text = commentText.trim();
+    if (!text || !currentUser) return;
+    const newComment: Comment = {
       id: `comment_${Date.now()}`,
       authorUsername: currentUser.username,
       authorName: currentUser.name,
       authorAvatar: currentUser.avatar,
-      text: commentText.trim(),
+      text,
       createdAt: Date.now(),
       likes: 0,
     };
     setComments(prev => [...prev, newComment]);
-    await addComment(post.id, {
-      authorUsername: currentUser.username,
-      authorName: currentUser.name,
-      authorAvatar: currentUser.avatar,
-      text: commentText.trim(),
-    });
+    onUpdate?.(post.id, newComment);
+    await addComment(post.id, newComment);
     setCommentText("");
   };
 
@@ -391,27 +389,45 @@ export default function HomeFeed() {
   }, [visiblePosts.length, currentIndex]);
 
   /* ── Actions ── */
+  const updatePost = (postId: string, patch: Partial<Post>) => {
+    setPosts(prev =>
+      prev.map((p) => (p.id === postId ? { ...p, ...patch } : p))
+    );
+  };
+
   const handleLike = async (postId: string) => {
+    const newLikedByMe = await fbToggleLike(postId);
     setLikedPosts(prev => {
       const s = new Set(prev);
-      if (s.has(postId)) { s.delete(postId); } else { s.add(postId); }
+      if (newLikedByMe) { s.add(postId); } else { s.delete(postId); }
       return s;
     });
-    await fbToggleLike(postId);
+    const post = visiblePosts.find((p) => p.id === postId);
+    if (post) {
+      const newLikes = Math.max(0, post.likes + (newLikedByMe ? 1 : -1));
+      updatePost(postId, { likedByMe: newLikedByMe, likes: newLikes });
+    }
   };
 
   const handleSave = async (postId: string) => {
+    const newSavedByMe = await fbToggleSave(postId);
     setSavedPosts(prev => {
       const s = new Set(prev);
-      if (s.has(postId)) { s.delete(postId); } else { s.add(postId); }
+      if (newSavedByMe) { s.add(postId); } else { s.delete(postId); }
       return s;
     });
-    await fbToggleSave(postId);
-    showToast(savedPosts.has(postId) ? "Removed from saved" : "Saved!");
+    const post = visiblePosts.find((p) => p.id === postId);
+    if (post) {
+      const newSaves = Math.max(0, post.saves + (newSavedByMe ? 1 : -1));
+      updatePost(postId, { savedByMe: newSavedByMe, saves: newSaves });
+    }
+    showToast(newSavedByMe ? "Saved!" : "Removed from saved");
   };
 
   const handleShare = async (postId: string) => {
     await incrementShare(postId);
+    const post = visiblePosts.find((p) => p.id === postId);
+    if (post) updatePost(postId, { shares: post.shares + 1 });
     const shareUrl = typeof window !== "undefined" ? window.location.href : "https://vox-web-six.vercel.app";
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
@@ -934,7 +950,17 @@ export default function HomeFeed() {
           ═══════════════════════════════════════════ */}
       <AnimatePresence>
         {showCommentModal && currentPost && (
-          <CommentModal post={currentPost} onClose={() => setShowCommentModal(false)} />
+          <CommentModal
+            post={currentPost}
+            onClose={() => setShowCommentModal(false)}
+            onUpdate={(postId, comment) =>
+              setPosts(prev =>
+                prev.map((p) =>
+                  p.id === postId ? { ...p, comments: [...p.comments, comment] } : p
+                )
+              )
+            }
+          />
         )}
       </AnimatePresence>
 

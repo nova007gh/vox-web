@@ -113,25 +113,38 @@ export default function FeedPosts() {
   }, []);
 
   const handleLike = async (postId: string) => {
-    await toggleLike(postId);
+    const newLikedByMe = await toggleLike(postId);
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? { ...p, likedByMe: newLikedByMe, likes: Math.max(0, p.likes + (newLikedByMe ? 1 : -1)) }
+          : p
+      )
+    );
     if (selectedPost?.id === postId) {
-      setSelectedPost((prev) => prev ? {
-        ...prev,
-        likedByMe: !prev.likedByMe,
-        likes: prev.likedByMe ? prev.likes - 1 : prev.likes + 1,
-      } : null);
+      setSelectedPost((prev) =>
+        prev
+          ? { ...prev, likedByMe: newLikedByMe, likes: Math.max(0, prev.likes + (newLikedByMe ? 1 : -1)) }
+          : null
+      );
     }
   };
 
   const handleSave = async (postId: string) => {
-    await toggleSave(postId);
+    const newSavedByMe = await toggleSave(postId);
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId ? { ...p, savedByMe: newSavedByMe, saves: Math.max(0, p.saves + (newSavedByMe ? 1 : -1)) } : p
+      )
+    );
     if (selectedPost?.id === postId) {
-      setSelectedPost((prev) => prev ? { ...prev, savedByMe: !prev.savedByMe } : null);
+      setSelectedPost((prev) => (prev ? { ...prev, savedByMe: newSavedByMe } : null));
     }
   };
 
   const handleShare = async (postId: string) => {
     await incrementShare(postId);
+    setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, shares: p.shares + 1 } : p)));
     if (navigator.share) {
       navigator.share({ title: "VOXel Post", text: "Check out this post!", url: window.location.href }).catch(() => {});
     } else {
@@ -146,27 +159,28 @@ export default function FeedPosts() {
   };
 
   const handleComment = async (postId: string) => {
-    if (!commentText.trim() || !currentUser) return;
-    await addComment(postId, {
+    const text = commentText.trim();
+    if (!text || !currentUser) return;
+    const newComment = {
+      id: `comment_${Date.now()}`,
       authorUsername: currentUser.username,
       authorName: currentUser.name,
       authorAvatar: currentUser.avatar,
-      text: commentText.trim(),
-    });
+      text,
+      createdAt: Date.now(),
+      likes: 0,
+    };
+    await addComment(postId, newComment);
     setCommentText("");
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId ? { ...p, comments: [...p.comments, newComment] } : p
+      )
+    );
     if (selectedPost?.id === postId) {
-      setSelectedPost((prev) => prev ? {
-        ...prev,
-        comments: [...prev.comments, {
-          id: `comment_${Date.now()}`,
-          authorUsername: currentUser.username,
-          authorName: currentUser.name,
-          authorAvatar: currentUser.avatar,
-          text: commentText.trim(),
-          createdAt: Date.now(),
-          likes: 0,
-        }],
-      } : null);
+      setSelectedPost((prev) =>
+        prev ? { ...prev, comments: [...prev.comments, newComment] } : null
+      );
     }
   };
 
