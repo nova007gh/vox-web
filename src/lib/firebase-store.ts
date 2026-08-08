@@ -22,7 +22,7 @@ import {
   serverTimestamp,
   type Unsubscribe,
 } from "firebase/firestore";
-import { db, isFirebaseConfigured } from "./firebase";
+import { db, isFirebaseConfigured, ensureAuth } from "./firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { storage } from "./firebase";
 import {
@@ -409,6 +409,9 @@ export async function uploadFileToStorage(file: Blob, path?: string): Promise<{ 
   if (!USE_STORAGE || !storage) {
     throw new Error("Firebase Storage not configured");
   }
+
+  // Ensure we have an anonymous auth session for Storage rules
+  await ensureAuth();
 
   const timestamp = Date.now();
   const random = Math.random().toString(36).slice(2, 9);

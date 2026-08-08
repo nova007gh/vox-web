@@ -257,7 +257,9 @@ export default function CreatePage() {
             mediaIds.push(videoId);
             mediaUrls.push(videoUrl);
           } catch (err) {
-            console.warn("Firebase Storage video upload failed, falling back to IndexedDB:", err);
+            console.error("Firebase Storage video upload failed:", err);
+            setUploadError("Video uploaded to this device only. Enable Firebase Storage in your Firebase Console for cross-device playback.");
+            // Fallback: store in IndexedDB (only works on this device)
             const videoId = await storeFile(file);
             mediaIds.push(videoId);
           }

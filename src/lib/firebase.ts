@@ -5,6 +5,7 @@
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
+import { getAuth, signInAnonymously, type Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCG_zzPqHhVEyi7-Z-tmXXT0Qx03yZCG-g",
@@ -19,16 +20,31 @@ const firebaseConfig = {
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
 let storage: FirebaseStorage | null = null;
+let auth: Auth | null = null;
 
 try {
   if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     storage = getStorage(app);
+    auth = getAuth(app);
   }
 } catch {
   console.warn("Firebase not configured yet. Using localStorage fallback.");
 }
 
-export { app, db, storage };
+/** Ensure we have an anonymous auth session for Storage uploads. */
+let authReady: Promise<void> | null = null;
+export async function ensureAuth(): Promise<void> {
+  if (!auth) return;
+  if (!authReady) {
+    authReady = signInAnonymously(auth).then(() => {}).catch((err) => {
+      console.warn("Anonymous auth failed:", err);
+      authReady = null; // allow retry
+    });
+  }
+  return authReady;
+}
+
+export { app, db, storage, auth };
 export const isFirebaseConfigured = () => firebaseConfig.apiKey !== "YOUR_API_KEY";
