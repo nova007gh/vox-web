@@ -1,7 +1,10 @@
 import { getAllUsernames } from "../../../../lib/accounts";
 import ProfileView from "./ProfileView";
 
-/* ─────────────── Static Params (for static export) ─────────────── */
+/* ─────────────── Allow on-demand rendering for any username ─────────────── */
+export const dynamicParams = true;
+
+/* ─────────────── Static Params ─────────────── */
 export function generateStaticParams() {
   return getAllUsernames().map((username) => ({ username }));
 }
