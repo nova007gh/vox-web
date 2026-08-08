@@ -463,3 +463,30 @@ export async function compressImage(
     };
   });
 }
+
+/**
+ * Compress an image to fit within a target size (in bytes) for Firestore.
+ * Iteratively reduces dimensions and quality until it fits.
+ * Firestore documents have a 1MB limit, so we target ~700KB to leave room for other fields.
+ */
+export async function compressImageForFirestore(
+  file: Blob,
+  maxBytes: number = 700000,
+): Promise<Blob> {
+  let currentDim = 720;
+  let currentQuality = 0.7;
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const compressed = await compressImage(file, currentDim, currentQuality);
+    if (compressed.size <= maxBytes) {
+      return compressed;
+    }
+    // Reduce dimensions and quality progressively
+    currentDim = Math.round(currentDim * 0.75);
+    currentQuality = Math.max(0.3, currentQuality - 0.1);
+  }
+
+  // Last resort: very small
+  const finalCompressed = await compressImage(file, 300, 0.3);
+  return finalCompressed;
+}

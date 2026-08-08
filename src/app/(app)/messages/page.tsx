@@ -41,7 +41,7 @@ import {
   Check,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { sendMessage, subscribeToMessages, subscribeToConversations, markMessagesAsRead, subscribeToTyping, setTypingStatus, uploadFile, compressImage, type ChatMessage } from "@/lib/firebase-store";
+import { sendMessage, subscribeToMessages, subscribeToConversations, markMessagesAsRead, subscribeToTyping, setTypingStatus, uploadFile, compressImage, compressImageForFirestore, type ChatMessage } from "@/lib/firebase-store";
 import { getAccount, accounts } from "@/lib/accounts";
 
 /* ───────────────────────────── HELPERS ───────────────────────────── */
@@ -765,7 +765,7 @@ export default function MessagesPage() {
     showToast("Photo sent");
 
     try {
-      const compressed = await compressImage(file, 1080, 0.8);
+      const compressed = await compressImageForFirestore(file, 700000);
       const { url } = await uploadFile(compressed, `messages/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
       await sendMessage({
         senderUsername: currentUser.username,

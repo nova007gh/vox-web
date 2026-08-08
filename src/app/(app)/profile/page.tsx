@@ -6,7 +6,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import UserPostsGrid from "./UserPostsGrid";
-import { compressImage } from "@/lib/content-store";
+import { compressImageForFirestore } from "@/lib/content-store";
 import { uploadFile } from "@/lib/firebase-store";
 import {
   BadgeCheck,
@@ -218,7 +218,7 @@ export default function ProfilePage() {
     if (!file || !currentUser) return;
     setUploadingAvatar(true);
     try {
-      const compressed = await compressImage(file, 400, 0.85);
+      const compressed = await compressImageForFirestore(file, 200000);
       const { url } = await uploadFile(compressed, `avatars/${currentUser.username}_${Date.now()}.jpg`);
       setAvatarPreview(url);
       updateProfile({ avatar: url });
@@ -235,7 +235,7 @@ export default function ProfilePage() {
     if (!file || !currentUser) return;
     setUploadingCover(true);
     try {
-      const compressed = await compressImage(file, 1200, 0.8);
+      const compressed = await compressImageForFirestore(file, 500000);
       const { url } = await uploadFile(compressed, `covers/${currentUser.username}_${Date.now()}.jpg`);
       setCoverPreview(url);
       updateProfile({ cover: url });

@@ -36,6 +36,7 @@ import {
   createPost as fbCreatePost,
   generateVideoThumbnail,
   compressImage,
+  compressImageForFirestore,
 } from "@/lib/firebase-store";
 
 /* ─────────────────────────── DATA ─────────────────────────── */
@@ -233,7 +234,8 @@ export default function CreatePage() {
 
       for (const file of selectedFiles) {
         if (file.type.startsWith("image/")) {
-          const compressed = await compressImage(file, 720, 0.7);
+          // Use Firestore-safe compression (iteratively reduces size to fit <700KB)
+          const compressed = await compressImageForFirestore(file, 700000);
           const { url, id } = await uploadFile(compressed);
           mediaIds.push(id);
           mediaUrls.push(url);
@@ -241,7 +243,7 @@ export default function CreatePage() {
           // For videos: store thumbnail in Firestore (small), video in IndexedDB (local)
           const thumb = await generateVideoThumbnail(file);
           if (thumb) {
-            const compressedThumb = await compressImage(thumb, 480, 0.7);
+            const compressedThumb = await compressImageForFirestore(thumb, 500000);
             const { url: thumbUrl, id: thumbId } = await uploadFile(compressedThumb);
             thumbnailId = thumbId;
             thumbnailUrl = thumbUrl;
@@ -288,7 +290,13 @@ export default function CreatePage() {
       }, 2500);
     } catch (err) {
       console.error("Publish error:", err);
-      setUploadError("Failed to upload. Please try again.");
+      const errorMsg = err instanceof Error ? err.message : "Failed to upload. Please try again.";
+      // Check for Firestore size limit error
+      if (errorMsg.includes("RESOURCE_EXHAUSTED") || errorMsg.includes("exceeds the maximum") || errorMsg.includes("size")) {
+        setUploadError("Image too large. Try a smaller image or lower resolution.");
+      } else {
+        setUploadError(errorMsg);
+      }
       setUploading(false);
     }
   };

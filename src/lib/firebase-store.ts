@@ -27,6 +27,7 @@ import {
   getFileURL as idbGetFileURL,
   deleteFile as idbDeleteFile,
   compressImage,
+  compressImageForFirestore,
   generateVideoThumbnail,
   timeAgo,
   formatCount,
@@ -34,7 +35,7 @@ import {
   type Comment,
 } from "./content-store";
 
-export { compressImage, generateVideoThumbnail, timeAgo, formatCount };
+export { compressImage, compressImageForFirestore, generateVideoThumbnail, timeAgo, formatCount };
 export type { Post, Comment };
 
 const USE_FIREBASE = isFirebaseConfigured();
