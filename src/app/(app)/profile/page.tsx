@@ -6,8 +6,8 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import UserPostsGrid from "./UserPostsGrid";
-import { compressImageForFirestore } from "@/lib/content-store";
-import { uploadFile } from "@/lib/firebase-store";
+import { compressImageForFirestore, getUserPosts, getFollowing, formatCount } from "@/lib/content-store";
+import { uploadFile, subscribeToUserPosts } from "@/lib/firebase-store";
 import {
   BadgeCheck,
   Flame,
@@ -39,37 +39,21 @@ import {
   HelpCircle,
   Pencil,
   MapPin,
-  Calendar,
   Link2,
   ChevronLeft,
   ChevronDown,
   X,
   Check,
-  Mail,
-  Phone,
-  User as UserIcon,
   Camera,
 } from "lucide-react";
 
 /* ─────────────────────────── DATA ─────────────────────────── */
 
 const defaultStats = [
-  { label: "Followers", value: "2,096" },
-  { label: "Following", value: "821" },
-  { label: "Likes", value: "48.6K" },
-  { label: "Trust Score", value: "4.9" },
-];
-
-const defaultVideos = [
-  { id: 1, views: "12.4K", thumbnail: "https://images.unsplash.com/photo-1770445612539-1a49772a1c3f?fm=jpg&q=60&w=400&h=600&auto=format&fit=crop" },
-  { id: 2, views: "8.9K", thumbnail: "https://images.unsplash.com/photo-1650649016849-00938690600c?fm=jpg&q=60&w=400&h=600&auto=format&fit=crop" },
-  { id: 3, views: "21.3K", thumbnail: "https://images.unsplash.com/photo-1745975980824-bc88bd400c78?fm=jpg&q=60&w=400&h=600&auto=format&fit=crop" },
-  { id: 4, views: "5.6K", thumbnail: "https://images.unsplash.com/photo-1763328728510-064ea03a1f8a?fm=jpg&q=60&w=400&h=600&auto=format&fit=crop" },
-  { id: 5, views: "34.2K", thumbnail: "https://images.unsplash.com/photo-1761661769337-1efb17d08a91?fm=jpg&q=60&w=400&h=600&auto=format&fit=crop" },
-  { id: 6, views: "7.8K", thumbnail: "https://images.unsplash.com/photo-1765607476283-ca2d8201ddd4?fm=jpg&q=60&w=400&h=600&auto=format&fit=crop" },
-  { id: 7, views: "15.1K", thumbnail: "https://images.unsplash.com/photo-1765828592941-3b76fc06360a?fm=jpg&q=60&w=400&h=600&auto=format&fit=crop" },
-  { id: 8, views: "3.4K", thumbnail: "https://images.unsplash.com/photo-1613730318129-bf0ca2a12364?fm=jpg&q=60&w=400&h=600&auto=format&fit=crop" },
-  { id: 9, views: "6.7K", thumbnail: "https://images.unsplash.com/photo-1758600435913-c45b319745ca?fm=jpg&q=60&w=400&h=600&auto=format&fit=crop" },
+  { label: "Posts", value: "0" },
+  { label: "Followers", value: "0" },
+  { label: "Following", value: "0" },
+  { label: "Trust Score", value: "—" },
 ];
 
 const creatorHub = [
@@ -93,13 +77,13 @@ const badges = [
 ];
 
 const suggestedCreators = [
-  { id: 1, name: "SNY Obeng", handle: "@snyobeng", username: "snyobeng", followers: "892", avatar: "/profiles/snyobeng/123121.jpeg" },
-  { id: 2, name: "Glow By Nana", handle: "@glowbynana", username: "glowbynana", followers: "1.2M", avatar: "https://images.unsplash.com/photo-1763328728510-064ea03a1f8a?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
-  { id: 3, name: "Berry Beauty", handle: "@berrybeauty", username: "berrybeauty", followers: "890K", avatar: "https://images.unsplash.com/photo-1761661769337-1efb17d08a91?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
-  { id: 4, name: "Hair By Maame", handle: "@hairbymaame", username: "hairbymaame", followers: "650K", avatar: "https://images.unsplash.com/photo-1745975980824-bc88bd400c78?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
-  { id: 5, name: "Wigs By Akua", handle: "@wigsbyakua", username: "wigsbyakua", followers: "420K", avatar: "https://images.unsplash.com/photo-1650649016849-00938690600c?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
-  { id: 6, name: "Afro Queen", handle: "@afroqueen", username: "afroqueen", followers: "2.1M", avatar: "https://images.unsplash.com/photo-1770445612539-1a49772a1c3f?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
-  { id: 7, name: "Slayed By Esi", handle: "@slayedbyesi", username: "slayedbyesi", followers: "340K", avatar: "https://images.unsplash.com/photo-1765607476283-ca2d8201ddd4?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
+  { id: 1, name: "SNY Obeng", handle: "@snyobeng", username: "snyobeng", avatar: "/profiles/snyobeng/123121.jpeg" },
+  { id: 2, name: "Glow By Nana", handle: "@glowbynana", username: "glowbynana", avatar: "https://images.unsplash.com/photo-1763328728510-064ea03a1f8a?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
+  { id: 3, name: "Berry Beauty", handle: "@berrybeauty", username: "berrybeauty", avatar: "https://images.unsplash.com/photo-1761661769337-1efb17d08a91?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
+  { id: 4, name: "Hair By Maame", handle: "@hairbymaame", username: "hairbymaame", avatar: "https://images.unsplash.com/photo-1745975980824-bc88bd400c78?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
+  { id: 5, name: "Wigs By Akua", handle: "@wigsbyakua", username: "wigsbyakua", avatar: "https://images.unsplash.com/photo-1650649016849-00938690600c?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
+  { id: 6, name: "Afro Queen", handle: "@afroqueen", username: "afroqueen", avatar: "https://images.unsplash.com/photo-1770445612539-1a49772a1c3f?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
+  { id: 7, name: "Slayed By Esi", handle: "@slayedbyesi", username: "slayedbyesi", avatar: "https://images.unsplash.com/photo-1765607476283-ca2d8201ddd4?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
 ];
 
 const faqs = [
@@ -111,32 +95,13 @@ const faqs = [
 ];
 
 const weeklyViews = [
-  { day: "Mon", value: 65 },
-  { day: "Tue", value: 80 },
-  { day: "Wed", value: 45 },
-  { day: "Thu", value: 95 },
-  { day: "Fri", value: 70 },
-  { day: "Sat", value: 100 },
-  { day: "Sun", value: 85 },
-];
-
-const topVideos = [
-  { id: 5, title: "Ready to wear wig unboxing 💇‍♀️", views: "34.2K" },
-  { id: 3, title: "Frontal ponytail tutorial ✨", views: "21.3K" },
-  { id: 7, title: "Luxury hair extension install", views: "15.1K" },
-];
-
-const demographics = [
-  { country: "Ghana", pct: 45, color: "bg-vox-green" },
-  { country: "Nigeria", pct: 20, color: "bg-vox-purple" },
-  { country: "USA", pct: 15, color: "bg-vox-cyan" },
-  { country: "Other", pct: 20, color: "bg-vox-orange" },
-];
-
-const topSubscribers = [
-  { id: 1, name: "Kofi Mensah", handle: "@kofim", amount: "₵450/mo", avatar: "https://images.unsplash.com/photo-1761661769337-1efb17d08a91?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
-  { id: 2, name: "Ama Serwaa", handle: "@amaserwaa", amount: "₵300/mo", avatar: "https://images.unsplash.com/photo-1745975980824-bc88bd400c78?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
-  { id: 3, name: "Yaw Boateng", handle: "@yawb", amount: "₵200/mo", avatar: "https://images.unsplash.com/photo-1761661769337-1efb17d08a91?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces" },
+  { day: "Mon", value: 0 },
+  { day: "Tue", value: 0 },
+  { day: "Wed", value: 0 },
+  { day: "Thu", value: 0 },
+  { day: "Fri", value: 0 },
+  { day: "Sat", value: 0 },
+  { day: "Sun", value: 0 },
 ];
 
 /* ─────────────────────────── PAGE ─────────────────────────── */
@@ -153,7 +118,6 @@ export default function ProfilePage() {
   }, [hydrated, currentUser, router]);
 
   const [activeTab, setActiveTab] = useState("Videos");
-  const [isFollowing, setIsFollowing] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [followedSuggested, setFollowedSuggested] = useState<Set<number>>(new Set());
   const [expandedBadge, setExpandedBadge] = useState<number | null>(null);
@@ -193,13 +157,37 @@ export default function ProfilePage() {
     }
   }, [currentUser]);
 
-  // Dynamic stats from current user
+  // Real stats from current user
+  const [realPostCount, setRealPostCount] = useState(0);
+  const [realFollowing, setRealFollowing] = useState(0);
+  const [realFollowers, setRealFollowers] = useState(0);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const username = currentUser.username;
+    // Real post count
+    setRealPostCount(getUserPosts(username).length);
+    const unsub = subscribeToUserPosts(username, (posts) => setRealPostCount(posts.length));
+    // Real following count
+    const followsByUser = typeof window !== "undefined"
+      ? JSON.parse(window.localStorage.getItem("voxel_follows_by_user") || "{}")
+      : {};
+    setRealFollowing((followsByUser[username] || getFollowing()).length);
+    // Real followers count
+    let fCount = 0;
+    for (const u in followsByUser) {
+      if (followsByUser[u].includes(username)) fCount++;
+    }
+    setRealFollowers(fCount);
+    return () => unsub();
+  }, [currentUser]);
+
   const stats = currentUser
     ? [
-        { label: "Posts", value: currentUser.posts_count },
-        { label: "Followers", value: currentUser.followers },
-        { label: "Following", value: currentUser.following },
-        { label: "Trust Score", value: "4.9" },
+        { label: "Posts", value: formatCount(realPostCount) },
+        { label: "Followers", value: formatCount(realFollowers) },
+        { label: "Following", value: formatCount(realFollowing) },
+        { label: "Trust Score", value: realPostCount > 0 ? "4.9" : "—" },
       ]
     : defaultStats;
 
@@ -247,17 +235,12 @@ export default function ProfilePage() {
     setUploadingCover(false);
   };
 
-  // Dynamic content tabs from current user's posts
-  const userPosts = currentUser?.posts || [];
-  // Build videos array from current user's posts, or fall back to defaults
-  const videos = userPosts.length > 0
-    ? userPosts.map((p) => ({ id: p.id, views: p.likes, thumbnail: p.thumbnail }))
-    : defaultVideos;
+  // Content tabs - use real post count
   const contentTabs = [
-    { label: "Videos", icon: Play, count: userPosts.length },
+    { label: "Videos", icon: Play, count: realPostCount },
     { label: "Liked", icon: Heart, count: 0 },
     { label: "Saved", icon: Bookmark, count: 0 },
-    { label: "Shop", icon: ShoppingBag, count: currentUser?.isSeller ? userPosts.length : 0 },
+    { label: "Shop", icon: ShoppingBag, count: 0 },
     { label: "About", icon: Info, count: null },
   ];
 
@@ -453,10 +436,10 @@ export default function ProfilePage() {
 
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.35 }} className="flex items-center justify-center sm:justify-start gap-2 mt-5 flex-wrap">
             <button
-              onClick={() => setIsFollowing(!isFollowing)}
-              className={`btn-gradient rounded-full px-5 py-2 text-xs sm:text-sm font-semibold touch-feedback text-white ${isFollowing ? "!bg-transparent !from-transparent !to-transparent glass !text-vox-muted" : ""}`}
+              onClick={openEdit}
+              className="btn-gradient rounded-full px-5 py-2 text-xs sm:text-sm font-semibold touch-feedback text-white"
             >
-              {isFollowing ? "Following" : "Follow"}
+              Edit Profile
             </button>
             <button onClick={() => router.push("/messages")} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full glass touch-feedback flex items-center justify-center text-vox-muted hover:text-white transition-colors">
               <MessageCircle className="w-5 h-5" />
@@ -527,61 +510,15 @@ export default function ProfilePage() {
               username={currentUser?.username || ""}
               emptyMessage="No posts yet. Tap Create to share your first post!"
             />
-
-            {/* Default/demo videos */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 mt-4">
-              {videos.map((video, i) => (
-                <motion.div
-                  key={video.id}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.04 }}
-                  onClick={() => router.push("/")}
-                  className="relative aspect-[9/16] rounded-xl overflow-hidden touch-feedback card-hover group cursor-pointer"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={video.thumbnail} alt={`Video ${video.id} thumbnail`} className="absolute inset-0 w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                      <Play className="w-5 h-5 text-white fill-white ml-0.5" />
-                    </div>
-                  </div>
-                  <div className="absolute bottom-2 left-2 flex items-center gap-1">
-                    <Play className="w-3 h-3 text-white/80 fill-white/80" />
-                    <span className="text-[10px] font-medium text-white/90">{video.views}</span>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
           </motion.section>
         )}
 
         {/* ── LIKED TAB ── */}
         {activeTab === "Liked" && (
           <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-              {videos.slice(0, 6).map((video, i) => (
-                <motion.div
-                  key={video.id}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.04 }}
-                  onClick={() => router.push("/")}
-                  className="relative aspect-[9/16] rounded-xl overflow-hidden touch-feedback card-hover group cursor-pointer"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={video.thumbnail} alt={`Video ${video.id} thumbnail`} className="absolute inset-0 w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  <div className="absolute top-2 right-2">
-                    <Heart className="w-5 h-5 text-vox-pink fill-vox-pink" />
-                  </div>
-                  <div className="absolute bottom-2 left-2 flex items-center gap-1">
-                    <Play className="w-3 h-3 text-white/80 fill-white/80" />
-                    <span className="text-[10px] font-medium text-white/90">{video.views}</span>
-                  </div>
-                </motion.div>
-              ))}
+            <div className="glass rounded-3xl p-10 text-center">
+              <Heart className="w-12 h-12 text-vox-muted mx-auto mb-3" />
+              <p className="text-vox-muted text-sm">No liked posts yet. Tap the heart on posts you enjoy!</p>
             </div>
           </motion.section>
         )}
@@ -589,28 +526,9 @@ export default function ProfilePage() {
         {/* ── SAVED TAB ── */}
         {activeTab === "Saved" && (
           <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-              {videos.slice(6).map((video, i) => (
-                <motion.div
-                  key={video.id}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.04 }}
-                  onClick={() => router.push("/")}
-                  className="relative aspect-[9/16] rounded-xl overflow-hidden touch-feedback card-hover group cursor-pointer"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={video.thumbnail} alt={`Video ${video.id} thumbnail`} className="absolute inset-0 w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  <div className="absolute top-2 right-2">
-                    <Bookmark className="w-5 h-5 text-vox-cyan fill-vox-cyan" />
-                  </div>
-                  <div className="absolute bottom-2 left-2 flex items-center gap-1">
-                    <Play className="w-3 h-3 text-white/80 fill-white/80" />
-                    <span className="text-[10px] font-medium text-white/90">{video.views}</span>
-                  </div>
-                </motion.div>
-              ))}
+            <div className="glass rounded-3xl p-10 text-center">
+              <Bookmark className="w-12 h-12 text-vox-muted mx-auto mb-3" />
+              <p className="text-vox-muted text-sm">No saved posts yet. Tap the bookmark on posts to save them!</p>
             </div>
           </motion.section>
         )}
@@ -620,7 +538,7 @@ export default function ProfilePage() {
           <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
             <div className="text-center py-12">
               <ShoppingBag className="w-12 h-12 text-vox-muted mx-auto mb-3" />
-              <p className="text-vox-muted text-sm mb-4">32 products in shop</p>
+              <p className="text-vox-muted text-sm mb-4">No products in your shop yet</p>
               <button onClick={() => router.push("/marketplace")} className="btn-gradient text-white text-sm font-semibold px-6 py-2.5 rounded-xl touch-feedback">
                 Visit Marketplace
               </button>
@@ -634,41 +552,17 @@ export default function ProfilePage() {
             <div className="glass rounded-2xl p-4 sm:p-5 space-y-4">
               <div>
                 <h3 className="text-sm font-semibold text-white mb-2">Bio</h3>
-                <p className="text-sm text-vox-muted">{profileData.bio}</p>
+                <p className="text-sm text-vox-muted">{profileData.bio || "No bio yet."}</p>
               </div>
-              <div className="flex items-center gap-2 text-sm text-vox-muted">
-                <MapPin className="w-4 h-4 text-vox-pink" />
-                {profileData.location}
-              </div>
-              <div className="flex items-center gap-2 text-sm text-vox-muted">
-                <Calendar className="w-4 h-4 text-vox-purple" />
-                Joined March 2024
-              </div>
+              {profileData.location && (
+                <div className="flex items-center gap-2 text-sm text-vox-muted">
+                  <MapPin className="w-4 h-4 text-vox-pink" />
+                  {profileData.location}
+                </div>
+              )}
               <div className="flex items-center gap-2 text-sm text-vox-muted">
                 <Link2 className="w-4 h-4 text-vox-cyan" />
                 vox.el/{profileData.username}
-              </div>
-              <div className="flex items-center gap-2 text-sm text-vox-muted">
-                <Mail className="w-4 h-4 text-vox-orange" />
-                justwearwigs@vox.el
-              </div>
-              <div className="flex items-center gap-2 text-sm text-vox-muted">
-                <Phone className="w-4 h-4 text-vox-green" />
-                +233 59 420 4990
-              </div>
-              <div className="flex items-center gap-2 text-sm text-vox-muted">
-                <UserIcon className="w-4 h-4 text-vox-purple" />
-                Female
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-white mb-2">Services</h3>
-                <div className="flex flex-wrap gap-2">
-                  {["Hair Extensions", "Ready to Wear Wigs", "Frontal Ponytail", "Lace Frontals", "Wig Install", "Hair Care"].map((tag) => (
-                    <span key={tag} className="text-xs font-medium text-vox-pink bg-vox-pink/10 border border-vox-pink/20 px-3 py-1 rounded-full">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
               </div>
             </div>
           </motion.section>
@@ -762,7 +656,6 @@ export default function ProfilePage() {
                 <div className="text-center w-full">
                   <p className="text-xs font-semibold text-white truncate w-full text-center">{creator.name}</p>
                   <p className="text-[10px] text-vox-muted truncate w-full text-center">{creator.handle}</p>
-                  <p className="text-[10px] text-vox-muted mt-0.5">{creator.followers} followers</p>
                 </div>
                 <button
                   onClick={(e) => { e.preventDefault(); toggleSuggestedFollow(creator.id); }}
@@ -1177,10 +1070,10 @@ export default function ProfilePage() {
               <div className="p-5 space-y-5">
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label: "Total Views", value: "2.4M", change: "+12.5%", color: "text-vox-cyan" },
-                    { label: "Profile Visits", value: "48.2K", change: "+8.3%", color: "text-vox-purple" },
-                    { label: "Engagement", value: "8.7%", change: "+2.1%", color: "text-vox-green" },
-                    { label: "Revenue", value: "$1,240", change: "+15.0%", color: "text-vox-orange" },
+                    { label: "Total Views", value: formatCount(realPostCount > 0 ? 0 : 0), change: "—", color: "text-vox-cyan" },
+                    { label: "Profile Visits", value: "0", change: "—", color: "text-vox-purple" },
+                    { label: "Engagement", value: "0%", change: "—", color: "text-vox-green" },
+                    { label: "Revenue", value: "$0", change: "—", color: "text-vox-orange" },
                   ].map((s) => (
                     <div key={s.label} className="glass rounded-2xl p-3">
                       <p className="text-[10px] text-vox-muted">{s.label}</p>
@@ -1202,33 +1095,8 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <h4 className="text-sm font-semibold text-white mb-3">Top Videos</h4>
-                  <div className="space-y-2">
-                    {topVideos.map((v, i) => (
-                      <div key={v.id} className="flex items-center gap-3 glass rounded-2xl p-3">
-                        <span className="text-xs font-bold text-vox-muted w-4">#{i + 1}</span>
-                        <div className="w-10 h-14 rounded-lg bg-vox-purple/20 flex items-center justify-center shrink-0">
-                          <Play className="w-4 h-4 text-vox-purple fill-vox-purple" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-white truncate">{v.title}</p>
-                          <p className="text-[10px] text-vox-muted mt-0.5">{v.views} views</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-white mb-3">Audience Demographics</h4>
-                  <div className="space-y-2">
-                    {demographics.map((d) => (
-                      <div key={d.country} className="flex items-center gap-3">
-                        <span className="text-xs text-white w-16">{d.country}</span>
-                        <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
-                          <div className={`h-full ${d.color}`} style={{ width: `${d.pct}%` }} />
-                        </div>
-                        <span className="text-xs text-vox-muted w-8 text-right">{d.pct}%</span>
-                      </div>
-                    ))}
+                  <div className="glass rounded-2xl p-4 text-center">
+                    <p className="text-vox-muted text-xs">No video data yet. Start posting to see analytics!</p>
                   </div>
                 </div>
                 <button
@@ -1272,22 +1140,12 @@ export default function ProfilePage() {
               </div>
               <div className="p-5 space-y-4">
                 <div className="glass rounded-2xl p-4 text-center">
-                  <p className="text-2xl font-bold text-white">₵950</p>
+                  <p className="text-2xl font-bold text-white">₵0</p>
                   <p className="text-xs text-vox-muted mt-1">Total monthly earnings</p>
                 </div>
-                <h4 className="text-sm font-semibold text-white">Top Subscribers</h4>
-                <div className="space-y-2">
-                  {topSubscribers.map((sub) => (
-                    <div key={sub.id} className="flex items-center gap-3 glass rounded-2xl p-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={sub.avatar} alt={sub.name} className="w-10 h-10 rounded-full object-cover" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{sub.name}</p>
-                        <p className="text-xs text-vox-muted">{sub.handle}</p>
-                      </div>
-                      <span className="text-xs font-semibold text-vox-green">{sub.amount}</span>
-                    </div>
-                  ))}
+                <div className="glass rounded-2xl p-6 text-center">
+                  <Users className="w-10 h-10 text-vox-muted mx-auto mb-2" />
+                  <p className="text-vox-muted text-sm">No subscribers yet. Create engaging content to attract subscribers!</p>
                 </div>
                 <button
                   onClick={() => { setShowSubsModal(false); showToast("Subscription tiers updated!"); }}
@@ -1339,7 +1197,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 {[
-                  { label: "My Content", desc: "247 videos protected", icon: Shield, color: "text-vox-cyan" },
+                  { label: "My Content", desc: `${realPostCount} posts protected`, icon: Shield, color: "text-vox-cyan" },
                   { label: "Claims Received", desc: "0 active claims", icon: FileText, color: "text-vox-green" },
                   { label: "Claims Sent", desc: "0 submitted", icon: FileText, color: "text-vox-purple" },
                 ].map((item) => (
