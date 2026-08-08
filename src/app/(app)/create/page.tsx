@@ -35,7 +35,6 @@ import {
   uploadFile,
   createPost as fbCreatePost,
   generateVideoThumbnail,
-  compressImage,
   compressImageForFirestore,
 } from "@/lib/firebase-store";
 
@@ -305,7 +304,7 @@ export default function CreatePage() {
   const handleAdImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const compressed = await compressImage(file, 800, 0.8);
+    const compressed = await compressImageForFirestore(file, 500000);
     const { url, id } = await uploadFile(compressed);
     setAdImageId(id);
     setAdImageUrl(url);

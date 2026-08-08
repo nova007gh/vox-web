@@ -41,7 +41,7 @@ import {
   Check,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { sendMessage, subscribeToMessages, subscribeToConversations, markMessagesAsRead, subscribeToTyping, setTypingStatus, uploadFile, compressImage, compressImageForFirestore, type ChatMessage } from "@/lib/firebase-store";
+import { sendMessage, subscribeToMessages, subscribeToConversations, markMessagesAsRead, subscribeToTyping, setTypingStatus, uploadFile, compressImageForFirestore, type ChatMessage } from "@/lib/firebase-store";
 import { getAccount, accounts } from "@/lib/accounts";
 
 /* ───────────────────────────── HELPERS ───────────────────────────── */
