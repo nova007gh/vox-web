@@ -61,11 +61,11 @@ const discoverPills = [
 ];
 
 const tabs = [
-  { key: "foryou", label: "For You" },
-  { key: "following", label: "Following" },
-  { key: "trending", label: "Trending" },
-  { key: "ghana", label: "Ghana", emoji: "\u{1F1EC}\u{1F1ED}" },
-  { key: "live", label: "Live", live: true },
+  { key: "foryou", label: "For You", dot: "#7C2CFF", glow: "shadow-[0_0_8px_#7C2CFF]" },
+  { key: "following", label: "Following", dot: "#22D3EE", glow: "shadow-[0_0_8px_#22D3EE]" },
+  { key: "trending", label: "Trending", dot: "#FF2C91", glow: "shadow-[0_0_8px_#FF2C91]" },
+  { key: "ghana", label: "Ghana", dot: "#FF8A34", glow: "shadow-[0_0_8px_#FF8A34]", emoji: "\u{1F1EC}\u{1F1ED}" },
+  { key: "live", label: "Live", dot: "#EF4444", glow: "shadow-[0_0_8px_#EF4444]", live: true },
 ];
 
 const giftOptions = [
@@ -484,78 +484,50 @@ export default function HomeFeed() {
           MAIN FEED - Real posts from Firebase
           ═══════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col h-[calc(100dvh-4rem)] lg:h-screen relative min-w-0" ref={containerRef}>
-        {/* ── TOP TAB BAR ── */}
-        <div className="sticky top-0 z-40 glass-strong backdrop-blur-xl border-b border-white/[0.06]" style={{ paddingTop: "var(--safe-top)" }}>
-          <div className="flex items-center justify-center px-3 pt-2">
-            <div className="flex items-center gap-1.5 text-xs text-vox-muted bg-white/[0.04] rounded-full px-2.5 py-1">
-              <span>🇬🇭 Ghana</span>
-              <span className="flex items-center gap-1 text-white/80">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500" />
-                </span>
-                Live
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 px-3 sm:px-4 h-11 overflow-x-auto scrollbar-hide">
-            {tabs.map((tab) => {
-              const active = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => {
-                    if (tab.key === "live") { router.push("/live"); return; }
-                    if (tab.key === "ghana") { router.push("/explore"); return; }
-                    setActiveTab(tab.key);
-                  }}
-                  className={`touch-feedback relative flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold whitespace-nowrap transition-colors ${
-                    active ? "text-white" : "text-vox-muted"
-                  }`}
-                >
-                  {tab.emoji && <span className="text-base">{tab.emoji}</span>}
-                  {tab.label}
-                  {tab.live && (
-                    <span className="relative flex h-2 w-2 ml-0.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+        {/* ── TOP TAB BAR (Snapchat-style transparent with glowing dots) ── */}
+        <div className="sticky top-0 z-40 bg-transparent" style={{ paddingTop: "var(--safe-top)" }}>
+          <div className="flex items-center justify-center px-2 pt-2 pb-1.5">
+            <div className="flex items-center gap-0.5 sm:gap-1 bg-white/[0.03] backdrop-blur-md rounded-full px-1.5 py-1 border border-white/[0.08]">
+              {tabs.map((tab) => {
+                const active = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => {
+                      if (tab.key === "live") { router.push("/live"); return; }
+                      if (tab.key === "ghana") { router.push("/explore"); return; }
+                      setActiveTab(tab.key);
+                    }}
+                    className={`touch-feedback relative flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-300 rounded-full ${
+                      active ? "text-white bg-white/[0.08]" : "text-white/50 hover:text-white/80"
+                    }`}
+                  >
+                    {/* Glowing dot */}
+                    <span
+                      className={`relative flex h-2 w-2 rounded-full transition-all duration-300 ${active ? tab.glow : "opacity-40"}`}
+                      style={{ backgroundColor: tab.dot, boxShadow: active ? `0 0 8px ${tab.dot}, 0 0 4px ${tab.dot}` : "none" }}
+                    >
+                      {tab.live && (
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: tab.dot }} />
+                      )}
                     </span>
-                  )}
-                  {active && (
-                    <motion.div
-                      layoutId="feed-tab-underline"
-                      className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full"
-                      style={{ background: "linear-gradient(90deg, #7C2CFF, #FF2C91, #FF8A34)" }}
-                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ── MOBILE DISCOVER STRIP ── */}
-        <div className="lg:hidden flex flex-col gap-2.5 py-2.5 border-b border-white/[0.06] bg-vox-bg/80 backdrop-blur-sm">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-semibold text-vox-muted uppercase tracking-wide px-3">Trending</span>
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-3 px-3">
-              {trendingHashtags.map((item) => (
-                <Link key={item.tag} href="/explore" className="touch-feedback flex items-center gap-1 glass rounded-full px-3 py-1.5 text-xs font-medium text-vox-muted whitespace-nowrap">
-                  <Hash className="w-3 h-3" />
-                  {item.tag}
-                </Link>
-              ))}
-              {discoverPills.map((pill) => (
-                <Link key={pill} href="/explore" className="touch-feedback glass rounded-full px-3 py-1.5 text-xs font-medium text-vox-muted whitespace-nowrap">
-                  {pill}
-                </Link>
-              ))}
+                    {tab.label}
+                    {active && (
+                      <motion.div
+                        layoutId="feed-tab-glow"
+                        className="absolute inset-0 rounded-full"
+                        style={{ boxShadow: `inset 0 0 12px ${tab.dot}40, 0 0 6px ${tab.dot}30` }}
+                        transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
 
-        {/* ── POST FEED AREA (TikTok style) ── */}
+        {/* ── POST FEED AREA (Snapchat-style vertical video feed) ── */}
         {!loaded ? (
           renderLoading()
         ) : visiblePosts.length === 0 ? (
@@ -602,7 +574,7 @@ export default function HomeFeed() {
                 {/* Mute button */}
                 <button
                   onClick={(e) => { e.stopPropagation(); setIsMuted((m) => !m); }}
-                  className="touch-feedback absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white/80"
+                  className="touch-feedback absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center text-white/80 border border-white/10"
                 >
                   {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                 </button>
@@ -719,61 +691,69 @@ export default function HomeFeed() {
                   </div>
                 </div>
 
-                {/* ── Right-side action buttons ── */}
-                <div className="absolute right-2 sm:right-3 bottom-24 sm:bottom-20 z-10 flex flex-col items-center gap-3 sm:gap-4 lg:right-5 lg:bottom-1/4">
+                {/* ── Right-side action buttons (Snapchat-style glassy circles) ── */}
+                <div className="absolute right-2 sm:right-3 bottom-20 sm:bottom-16 z-10 flex flex-col items-center gap-2.5 sm:gap-3 lg:right-4 lg:bottom-1/4">
                   {/* Like */}
                   <button
                     onClick={(e) => { e.stopPropagation(); handleLike(currentPost.id); }}
-                    className="touch-feedback flex flex-col items-center gap-1 w-11 h-11 sm:w-12 sm:h-12 justify-center"
+                    className="touch-feedback flex flex-col items-center gap-0.5"
                   >
-                    <motion.div whileTap={{ scale: 1.4 }}>
-                      <Heart className={`w-6 h-6 sm:w-7 sm:h-7 transition-colors ${likedPosts.has(currentPost.id) ? "fill-vox-pink text-vox-pink" : "text-white"}`} />
+                    <motion.div whileTap={{ scale: 1.4 }} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10">
+                      <Heart className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors ${likedPosts.has(currentPost.id) ? "fill-vox-pink text-vox-pink" : "text-white"}`} />
                     </motion.div>
-                    <span className="text-[10px] font-semibold text-white">{formatCount(currentPost.likes)}</span>
+                    <span className="text-[10px] font-semibold text-white drop-shadow-lg">{formatCount(currentPost.likes)}</span>
                   </button>
 
                   {/* Comment */}
                   <button
                     onClick={(e) => { e.stopPropagation(); setShowCommentModal(true); }}
-                    className="touch-feedback flex flex-col items-center gap-1 w-11 h-11 sm:w-12 sm:h-12 justify-center"
+                    className="touch-feedback flex flex-col items-center gap-0.5"
                   >
-                    <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-                    <span className="text-[10px] font-semibold text-white">{currentPost.comments?.length || 0}</span>
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10">
+                      <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    </div>
+                    <span className="text-[10px] font-semibold text-white drop-shadow-lg">{currentPost.comments?.length || 0}</span>
                   </button>
 
                   {/* Share */}
                   <button
                     onClick={(e) => { e.stopPropagation(); handleShare(currentPost.id); }}
-                    className="touch-feedback flex flex-col items-center gap-1 w-11 h-11 sm:w-12 sm:h-12 justify-center"
+                    className="touch-feedback flex flex-col items-center gap-0.5"
                   >
-                    <Share2 className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-                    <span className="text-[10px] font-semibold text-white">{formatCount(currentPost.shares)}</span>
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10">
+                      <Share2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    </div>
+                    <span className="text-[10px] font-semibold text-white drop-shadow-lg">{formatCount(currentPost.shares)}</span>
                   </button>
 
                   {/* Gift */}
                   <button
                     onClick={(e) => { e.stopPropagation(); setShowGiftModal(true); }}
-                    className="touch-feedback flex flex-col items-center gap-1 w-11 h-11 sm:w-12 sm:h-12 justify-center"
+                    className="touch-feedback flex flex-col items-center gap-0.5"
                   >
-                    <Gift className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-                    <span className="text-[10px] font-semibold text-white">Gift</span>
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10">
+                      <Gift className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    </div>
+                    <span className="text-[10px] font-semibold text-white drop-shadow-lg">Gift</span>
                   </button>
 
                   {/* Bookmark */}
                   <button
                     onClick={(e) => { e.stopPropagation(); handleSave(currentPost.id); }}
-                    className="touch-feedback flex flex-col items-center gap-1 w-11 h-11 sm:w-12 sm:h-12 justify-center"
+                    className="touch-feedback flex flex-col items-center gap-0.5"
                   >
-                    <Bookmark className={`w-6 h-6 sm:w-7 sm:h-7 transition-colors ${savedPosts.has(currentPost.id) ? "fill-vox-orange text-vox-orange" : "text-white"}`} />
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10">
+                      <Bookmark className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors ${savedPosts.has(currentPost.id) ? "fill-vox-orange text-vox-orange" : "text-white"}`} />
+                    </div>
                   </button>
 
                   {/* More */}
                   <div className="relative">
                     <button
                       onClick={(e) => { e.stopPropagation(); setShowMoreMenu((s) => !s); }}
-                      className="touch-feedback w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center"
+                      className="touch-feedback w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10"
                     >
-                      <MoreHorizontal className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                      <MoreHorizontal className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     </button>
                     <AnimatePresence>
                       {showMoreMenu && (
@@ -801,9 +781,9 @@ export default function HomeFeed() {
                 </div>
 
                 {/* Views count */}
-                <div className="absolute top-4 left-4 z-10 flex items-center gap-1.5 bg-black/40 backdrop-blur-md text-white text-xs font-medium px-2.5 py-1 rounded-full">
+                <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-black/30 backdrop-blur-md text-white text-xs font-medium px-2.5 py-1 rounded-full border border-white/10">
                   <Eye className="w-3 h-3" />
-                  {formatCount(currentPost.views)} views
+                  {formatCount(currentPost.views)}
                 </div>
               </motion.div>
             </AnimatePresence>
