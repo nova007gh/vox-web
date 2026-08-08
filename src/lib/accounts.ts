@@ -930,9 +930,19 @@ export const accounts: Account[] = [
   },
 ];
 
-/* Helper: get account by username */
+/* Helper: get account by username (seeded + signed-up users) */
 export function getAccount(username: string): Account | undefined {
-  return accounts.find((a) => a.username === username);
+  const seeded = accounts.find((a) => a.username === username);
+  if (seeded) return seeded;
+  if (typeof window === "undefined") return undefined;
+  try {
+    const raw = window.localStorage.getItem("voxel_users");
+    if (!raw) return undefined;
+    const users = JSON.parse(raw) as Account[];
+    return users.find((a) => a.username === username);
+  } catch {
+    return undefined;
+  }
 }
 
 /* Helper: get all usernames (for static params) */

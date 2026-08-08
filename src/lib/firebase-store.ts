@@ -23,6 +23,8 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "./firebase";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { storage } from "./firebase";
 import {
   getFileURL as idbGetFileURL,
   deleteFile as idbDeleteFile,
@@ -39,6 +41,7 @@ export { compressImage, compressImageForFirestore, generateVideoThumbnail, timeA
 export type { Post, Comment };
 
 const USE_FIREBASE = isFirebaseConfigured();
+const USE_STORAGE = isFirebaseConfigured() && storage;
 
 /* ─────────────── POSTS ─────────────── */
 
@@ -399,6 +402,54 @@ export async function downloadFile(mediaId: string, filename: string): Promise<v
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+}
+
+/** Upload a file to Firebase Storage and return its download URL */
+export async function uploadFileToStorage(file: Blob, path?: string): Promise<{ url: string; id: string }> {
+  if (!USE_STORAGE || !storage) {
+    throw new Error("Firebase Storage not configured");
+  }
+
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).slice(2, 9);
+  let ext = "";
+
+  if (file.type.startsWith("image/")) {
+    if (file.type.includes("jpeg") || file.type.includes("jpg")) ext = ".jpg";
+    else if (file.type.includes("png")) ext = ".png";
+    else if (file.type.includes("webp")) ext = ".webp";
+    else ext = ".jpg";
+  } else if (file.type.startsWith("video/")) {
+    if (file.type.includes("mov") || file.type.includes("quicktime")) ext = ".mov";
+    else if (file.type.includes("mp4")) ext = ".mp4";
+    else ext = ".mp4";
+  } else if (file.type.startsWith("audio/")) {
+    if (file.type.includes("mp3")) ext = ".mp3";
+    else if (file.type.includes("m4a") || file.type.includes("mp4")) ext = ".m4a";
+    else ext = ".mp3";
+  }
+
+  const storagePath = path || `uploads/${timestamp}_${random}${ext}`;
+  const storageRef = ref(storage!, storagePath);
+  await uploadBytes(storageRef, file);
+  const url = await getDownloadURL(storageRef);
+  return { url, id: storagePath };
+}
+
+/** Get a Firebase Storage download URL by path/id */
+export async function getStorageFileURL(id: string): Promise<string | null> {
+  if (!storage) return null;
+  try {
+    return await getDownloadURL(ref(storage!, id));
+  } catch {
+    return null;
+  }
+}
+
+/** Delete a Firebase Storage object by path/id */
+export async function deleteStorageFile(id: string): Promise<void> {
+  if (!storage) return;
+  await deleteObject(ref(storage!, id));
 }
 
 /* ─────────────── MESSAGES ─────────────── */

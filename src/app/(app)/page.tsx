@@ -55,11 +55,11 @@ const suggestedAccounts = accounts
   }));
 
 const trendingHashtags = [
-  { tag: "afrobeats", views: "14.2M" },
-  { tag: "ghanadance", views: "8.7M" },
-  { tag: "viralchallenge", views: "6.3M" },
-  { tag: "voxcreator", views: "4.1M" },
-  { tag: "highlife", views: "2.9M" },
+  { tag: "afrobeats" },
+  { tag: "ghanadance" },
+  { tag: "viralchallenge" },
+  { tag: "voxcreator" },
+  { tag: "highlife" },
 ];
 
 const discoverPills = [
@@ -101,16 +101,19 @@ function FeedVideoPlayer({ post, isPlaying, isMuted }: { post: Post; isPlaying: 
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    const mediaId = post.mediaIds.find((id) => id.startsWith("idb_") || !id.startsWith("file_"));
-    if (mediaId) {
-      getFileURL(mediaId).then((url) => {
+    const directUrl = post.mediaUrls?.[0];
+    if (directUrl && (directUrl.startsWith("http://") || directUrl.startsWith("https://") || directUrl.startsWith("blob:"))) {
+      setVideoUrl(directUrl);
+      setLoading(false);
+    } else if (post.mediaIds[0]) {
+      getFileURL(post.mediaIds[0]).then((url) => {
         if (url) setVideoUrl(url);
         setLoading(false);
       }).catch(() => setLoading(false));
     } else {
       setLoading(false);
     }
-  }, [post.mediaIds]);
+  }, [post.mediaIds, post.mediaUrls]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -898,7 +901,6 @@ export default function HomeFeed() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white">#{item.tag}</p>
-                    <p className="text-[11px] text-vox-muted">{item.views} views</p>
                   </div>
                 </Link>
               ))}

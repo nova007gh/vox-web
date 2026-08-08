@@ -34,17 +34,19 @@ function VideoPlayer({ post }: { post: Post }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Try to load video from IndexedDB
-    const mediaId = post.mediaIds[0];
-    if (mediaId) {
-      getFileURL(mediaId).then((url) => {
+    const directUrl = post.mediaUrls?.[0];
+    if (directUrl && (directUrl.startsWith("http://") || directUrl.startsWith("https://") || directUrl.startsWith("blob:"))) {
+      setVideoUrl(directUrl);
+      setLoading(false);
+    } else if (post.mediaIds[0]) {
+      getFileURL(post.mediaIds[0]).then((url) => {
         if (url) setVideoUrl(url);
         setLoading(false);
       }).catch(() => setLoading(false));
     } else {
       setLoading(false);
     }
-  }, [post.mediaIds]);
+  }, [post.mediaIds, post.mediaUrls]);
 
   if (loading) {
     return (

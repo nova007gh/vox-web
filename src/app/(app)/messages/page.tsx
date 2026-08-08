@@ -389,6 +389,38 @@ export default function MessagesPage() {
   // Track whether we've received any real-time messages for this chat
   const [hasRealtimeData, setHasRealtimeData] = useState(false);
 
+  // Open a specific chat from profile "Message" button
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const target = window.localStorage.getItem("voxel_open_chat");
+    if (!target || !currentUser) return;
+    window.localStorage.removeItem("voxel_open_chat");
+    const account = getAccount(target);
+    if (!account) return;
+    setSelectedChatUsername(target);
+    setChatsList((prev) => {
+      if (prev.some((c) => c.username === target || c.handle === `@${target}`)) return prev;
+      return [
+        ...prev,
+        {
+          id: Date.now(),
+          name: account.name,
+          handle: `@${account.username}`,
+          username: account.username,
+          lastMessage: "",
+          time: "Now",
+          unread: 0,
+          online: false,
+          verified: account.verified ?? false,
+          seller: account.isSeller ?? false,
+          avatar: account.avatar,
+          avatarUrl: account.avatar,
+          starred: false,
+        },
+      ];
+    });
+  }, [currentUser]);
+
   // Subscribe to real-time messages from Firebase
   useEffect(() => {
     if (!currentUser || !activeChatUsername) {

@@ -33,6 +33,7 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import {
   uploadFile,
+  uploadFileToStorage,
   createPost as fbCreatePost,
   generateVideoThumbnail,
   compressImageForFirestore,
@@ -242,18 +243,24 @@ export default function CreatePage() {
           const { url: thumbUrl } = await uploadFile(thumb);
           mediaUrls.push(thumbUrl);
         } else if (file.type.startsWith("video/")) {
-          // For videos: store thumbnail in Firestore (small), video in IndexedDB (local)
+          // For videos: store thumbnail (small), upload full video to Firebase Storage
           const thumb = await generateVideoThumbnail(file);
           if (thumb) {
             const compressedThumb = await compressImageForFirestore(thumb, 150000);
             const { url: thumbUrl, id: thumbId } = await uploadFile(compressedThumb);
             thumbnailId = thumbId;
             thumbnailUrl = thumbUrl;
-            mediaUrls.push(thumbUrl); // Use thumbnail as media URL for feed display
           }
-          // Store video locally in IndexedDB for playback on same device
-          const videoId = await storeFile(file);
-          mediaIds.push(videoId);
+          try {
+            // Upload full video to Firebase Storage so it plays for all users
+            const { url: videoUrl, id: videoId } = await uploadFileToStorage(file);
+            mediaIds.push(videoId);
+            mediaUrls.push(videoUrl);
+          } catch (err) {
+            console.warn("Firebase Storage video upload failed, falling back to IndexedDB:", err);
+            const videoId = await storeFile(file);
+            mediaIds.push(videoId);
+          }
         }
       }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -10,39 +10,114 @@ import {
   Share2,
   MoreHorizontal,
   ChevronLeft,
-  Heart,
   Grid3x3,
   Globe,
-  Play,
 } from "lucide-react";
-import {
-  getAccount,
-} from "../../../../lib/accounts";
+import { getAccount } from "../../../../lib/accounts";
 import UserPostsGrid from "../UserPostsGrid";
+import { useAuth } from "@/lib/auth-context";
+import {
+  getFollowing,
+  toggleFollow,
+  isFollowing,
+  getUserPosts,
+  formatCount,
+  type Post,
+} from "@/lib/content-store";
+import { subscribeToUserPosts } from "@/lib/firebase-store";
 
 /* ─────────────── Page Props ─────────────── */
 interface ProfileViewProps {
   username: string;
 }
 
+const FOLLOWS_BY_USER_KEY = "voxel_follows_by_user";
+
 /* ─────────────── Page ─────────────── */
 export default function ProfileView({ username }: ProfileViewProps) {
   const router = useRouter();
+  const { currentUser } = useAuth();
   const account = getAccount(username);
 
-  const [isFollowing, setIsFollowing] = useState(false);
+  /* ── Per-user follow helpers ── */
+  function readFollowsByUser(): Record<string, string[]> {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = window.localStorage.getItem(FOLLOWS_BY_USER_KEY);
+      return raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function writeFollowsByUser(map: Record<string, string[]>): void {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(FOLLOWS_BY_USER_KEY, JSON.stringify(map));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function getUserFollowingList(target: string): string[] {
+    const all = readFollowsByUser();
+    if (all[target]) return all[target];
+    if (currentUser?.username === target) return getFollowing();
+    return [];
+  }
+
+  function getIsFollowing(current: string, target: string): boolean {
+    return getUserFollowingList(current).includes(target);
+  }
+
+  function getFollowersCount(target: string): number {
+    const all = readFollowsByUser();
+    let count = 0;
+    for (const user in all) {
+      if (all[user].includes(target)) count++;
+    }
+    if (currentUser && !all[currentUser.username] && getFollowing().includes(target)) {
+      count++;
+    }
+    return count;
+  }
+
+  function getFollowingCount(target: string): number {
+    return getUserFollowingList(target).length;
+  }
+
+  /* ── State ── */
   const [showMenu, setShowMenu] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [selectedPost, setSelectedPost] = useState<
-    | {
-        id: number;
-        caption: string;
-        likes: string;
-        comments: string;
-        thumbnail: string;
-      }
-    | null
-  >(null);
+  const [posts, setPosts] = useState<Post[]>(() => getUserPosts(username));
+  const [postCount, setPostCount] = useState(posts.length);
+  const [following, setFollowing] = useState(() => isFollowing(username));
+  const [followersCount, setFollowersCount] = useState(() => getFollowersCount(username));
+  const [followingCount, setFollowingCount] = useState(() => getFollowingCount(username));
+
+  const isOwnProfile = currentUser?.username === username;
+
+  /* ── Effects ── */
+  useEffect(() => {
+    const initial = getUserPosts(username);
+    setPosts(initial);
+    const unsubscribe = subscribeToUserPosts(username, (newPosts) =>
+      setPosts(newPosts)
+    );
+    return () => unsubscribe();
+  }, [username]);
+
+  useEffect(() => {
+    setPostCount(posts.length);
+  }, [posts]);
+
+  useEffect(() => {
+    setFollowing(
+      currentUser ? getIsFollowing(currentUser.username, username) : isFollowing(username)
+    );
+    setFollowersCount(getFollowersCount(username));
+    setFollowingCount(getFollowingCount(username));
+  }, [username, currentUser]);
 
   /* ── Helpers ── */
   const showToast = (msg: string) => {
@@ -66,13 +141,36 @@ export default function ProfileView({ username }: ProfileViewProps) {
   };
 
   const handleFollow = () => {
-    setIsFollowing(!isFollowing);
+    if (!currentUser || isOwnProfile) return;
+
+    const newState = toggleFollow(username);
+    const all = readFollowsByUser();
+    const list = all[currentUser.username]
+      ? [...all[currentUser.username]]
+      : [...getFollowing()];
+
+    if (newState) {
+      if (!list.includes(username)) list.push(username);
+    } else {
+      const idx = list.indexOf(username);
+      if (idx >= 0) list.splice(idx, 1);
+    }
+
+    all[currentUser.username] = list;
+    writeFollowsByUser(all);
+
+    setFollowing(newState);
+    setFollowersCount(getFollowersCount(username));
+    setFollowingCount(getFollowingCount(username));
     showToast(
-      isFollowing ? `Unfollowed ${account?.name}` : `Now following ${account?.name}`
+      newState ? `Now following ${account?.name}` : `Unfollowed ${account?.name}`
     );
   };
 
   const handleMessage = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("voxel_open_chat", username);
+    }
     router.push("/messages");
   };
 
@@ -106,9 +204,9 @@ export default function ProfileView({ username }: ProfileViewProps) {
   }
 
   const stats = [
-    { label: "Posts", value: account.posts_count },
-    { label: "Followers", value: account.followers },
-    { label: "Following", value: account.following },
+    { label: "Posts", value: formatCount(postCount) },
+    { label: "Followers", value: formatCount(followersCount) },
+    { label: "Following", value: formatCount(followingCount) },
   ];
 
   /* ── Render ── */
@@ -281,13 +379,16 @@ export default function ProfileView({ username }: ProfileViewProps) {
         <div className="flex items-center gap-2 mb-6">
           <button
             onClick={handleFollow}
-            className={`flex-1 py-3 rounded-full font-semibold text-sm transition flex items-center justify-center gap-2 ${
-              isFollowing
+            disabled={isOwnProfile || !currentUser}
+            className={`flex-1 py-3 rounded-full font-semibold text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+              isOwnProfile
+                ? "glass text-vox-muted"
+                : following
                 ? "glass text-white hover:bg-white/10"
                 : "btn-gradient text-white"
             }`}
           >
-            {isFollowing ? "Following" : "Follow"}
+            {isOwnProfile ? "You" : following ? "Following" : "Follow"}
           </button>
           <button
             onClick={handleMessage}
@@ -326,13 +427,16 @@ export default function ProfileView({ username }: ProfileViewProps) {
             </p>
             <button
               onClick={handleFollow}
-              className={`px-8 py-3 rounded-full font-semibold text-sm transition ${
-                isFollowing
+              disabled={isOwnProfile || !currentUser}
+              className={`px-8 py-3 rounded-full font-semibold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                isOwnProfile
+                  ? "glass text-vox-muted"
+                  : following
                   ? "glass text-white hover:bg-white/10"
                   : "btn-gradient text-white"
               }`}
             >
-              {isFollowing ? "Following" : "Follow"}
+              {isOwnProfile ? "You" : following ? "Following" : "Follow"}
             </button>
           </motion.div>
         ) : (
@@ -341,129 +445,17 @@ export default function ProfileView({ username }: ProfileViewProps) {
             <div className="flex items-center gap-2 mb-4">
               <Grid3x3 className="w-4 h-4 text-vox-muted" />
               <h2 className="text-white font-semibold text-sm">
-                Posts ({account.posts.length})
+                Posts ({postCount})
               </h2>
             </div>
 
-            {/* User uploaded posts from content store */}
             <UserPostsGrid
               username={account.username}
-              emptyMessage=""
+              emptyMessage="No posts yet"
             />
-
-            {/* Seeded posts */}
-            {account.posts.length === 0 ? (
-              <div className="glass rounded-3xl p-10 text-center">
-                <p className="text-vox-muted text-sm">No posts yet</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-                {account.posts.map((post, idx) => (
-                  <motion.button
-                    key={post.id}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: idx * 0.04 }}
-                    onClick={() => setSelectedPost(post)}
-                    className="relative aspect-[3/4] rounded-xl overflow-hidden group"
-                  >
-                    <img
-                      src={post.thumbnail}
-                      alt={post.caption}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span className="flex items-center gap-1 text-white text-xs font-medium">
-                        <Heart className="w-3 h-3 fill-vox-pink text-vox-pink" />
-                        {post.likes}
-                      </span>
-                      <span className="flex items-center gap-1 text-white text-xs font-medium">
-                        <MessageCircle className="w-3 h-3 text-vox-cyan" />
-                        {post.comments}
-                      </span>
-                    </div>
-                    <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Play className="w-3 h-3 text-white fill-white" />
-                    </div>
-                  </motion.button>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>
-
-      {/* ── Post Modal ── */}
-      <AnimatePresence>
-        {selectedPost && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setSelectedPost(null)}
-            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="glass rounded-3xl overflow-hidden max-w-sm w-full"
-            >
-              <div className="relative">
-                <img
-                  src={selectedPost.thumbnail}
-                  alt={selectedPost.caption}
-                  className="w-full aspect-[3/4] object-cover"
-                />
-                <button
-                  onClick={() => setSelectedPost(null)}
-                  className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition"
-                  aria-label="Close"
-                >
-                  <ChevronLeft className="w-5 h-5 rotate-90" />
-                </button>
-              </div>
-              <div className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <img
-                    src={account.avatar}
-                    alt={account.name}
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <span className="text-white text-sm font-semibold truncate">
-                        {account.name}
-                      </span>
-                      {account.verified && (
-                        <BadgeCheck className="w-3.5 h-3.5 text-vox-cyan flex-shrink-0" />
-                      )}
-                    </div>
-                    <span className="text-vox-muted text-xs">
-                      @{account.username}
-                    </span>
-                  </div>
-                </div>
-                <p className="text-white/90 text-sm leading-relaxed mb-4">
-                  {selectedPost.caption}
-                </p>
-                <div className="flex items-center gap-5 pt-3 border-t border-white/5">
-                  <span className="flex items-center gap-1.5 text-white text-sm">
-                    <Heart className="w-4 h-4 text-vox-pink fill-vox-pink" />
-                    {selectedPost.likes}
-                  </span>
-                  <span className="flex items-center gap-1.5 text-white text-sm">
-                    <MessageCircle className="w-4 h-4 text-vox-cyan" />
-                    {selectedPost.comments}
-                  </span>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ── Toast ── */}
       <AnimatePresence>
