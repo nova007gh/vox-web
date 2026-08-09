@@ -33,11 +33,11 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import {
   uploadFile,
-  uploadFileToStorage,
   createPost as fbCreatePost,
   generateVideoThumbnail,
   compressImageForFirestore,
 } from "@/lib/firebase-store";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 
 /* ─────────────────────────── DATA ─────────────────────────── */
 
@@ -252,13 +252,13 @@ export default function CreatePage() {
             thumbnailUrl = thumbUrl;
           }
           try {
-            // Upload full video to Firebase Storage so it plays for all users
-            const { url: videoUrl, id: videoId } = await uploadFileToStorage(file);
+            // Upload full video to Cloudinary so it plays for all users
+            const { url: videoUrl, id: videoId } = await uploadToCloudinary(file);
             mediaIds.push(videoId);
             mediaUrls.push(videoUrl);
           } catch (err) {
-            console.error("Firebase Storage video upload failed:", err);
-            setUploadError("Video uploaded to this device only. Enable Firebase Storage in your Firebase Console for cross-device playback.");
+            console.error("Cloudinary video upload failed:", err);
+            setUploadError("Video uploaded to this device only. Cloudinary upload failed.");
             // Fallback: store in IndexedDB (only works on this device)
             const videoId = await storeFile(file);
             mediaIds.push(videoId);
