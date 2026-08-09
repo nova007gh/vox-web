@@ -29,6 +29,7 @@ import {
   ShoppingBag,
   DollarSign,
   Tag,
+  Radio,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -93,8 +94,17 @@ export default function CreatePage() {
     Object.fromEntries(contentControls.map((c) => [c.label, c.default]))
   );
   const [aiChecked, setAiChecked] = useState<Set<string>>(new Set());
+  // Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
+  const [recordCameraReady, setRecordCameraReady] = useState(false);
+  const [recordFacingMode, setRecordFacingMode] = useState<"user" | "environment">("user");
+  const [showRecordEffects, setShowRecordEffects] = useState(false);
+  const flipInProgressRef = useRef(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunksRef = useRef<Blob[]>([]);
+  const recordVideoRef = useRef<HTMLVideoElement | null>(null);
+  const recordStreamRef = useRef<MediaStream | null>(null);
   const [showPublish, setShowPublish] = useState(false);
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
@@ -112,7 +122,25 @@ export default function CreatePage() {
   const [adImageUrl, setAdImageUrl] = useState<string | null>(null);
   const [adPublishing, setAdPublishing] = useState(false);
   const adFileInputRef = useRef<HTMLInputElement>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Creator tool states
+  const [selectedMusic, setSelectedMusic] = useState<string | null>(null);
+  const [musicPlaying, setMusicPlaying] = useState<string | null>(null);
+  const [selectedEffect, setSelectedEffect] = useState<string | null>(null);
+  const [selectedBackground, setSelectedBackground] = useState<string | null>(null);
+  const [generatedCaptions, setGeneratedCaptions] = useState<string | null>(null);
+  const [isGeneratingCaptions, setIsGeneratingCaptions] = useState(false);
+  const [aiEnhancements, setAiEnhancements] = useState<string[]>([]);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(100);
+  const [voiceoverUrl, setVoiceoverUrl] = useState<string | null>(null);
+  const [isVoiceoverRecording, setIsVoiceoverRecording] = useState(false);
+  const [voiceoverTime, setVoiceoverTime] = useState(0);
+  const [drafts, setDrafts] = useState<{ id: string; title: string; data: Record<string, unknown>; createdAt: number }[]>([]);
+  const musicAudioRef = useRef<HTMLAudioElement | null>(null);
+  const voiceoverRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceoverChunksRef = useRef<Blob[]>([]);
+  const voiceoverTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Real upload state
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -128,6 +156,21 @@ export default function CreatePage() {
       router.push("/auth");
     }
   }, [hydrated, currentUser, router]);
+
+  // Load drafts on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = window.localStorage.getItem("voxel_create_drafts");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setDrafts(Array.isArray(parsed) ? parsed : []);
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }, []);
 
   // Handle file selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -180,16 +223,91 @@ export default function CreatePage() {
     });
   };
 
-  // Recording timer
+  // Recording effect: manages camera, MediaRecorder, timer, and finalization
   useEffect(() => {
+    let stream: MediaStream | null = null;
+    let recorder: MediaRecorder | null = null;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+      ? "video/webm;codecs=vp9,opus"
+      : MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+      ? "video/webm;codecs=vp8,opus"
+      : "video/webm";
+
+    const startRecording = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: recordFacingMode },
+          audio: true,
+        });
+        recordStreamRef.current = stream;
+        if (recordVideoRef.current) {
+          recordVideoRef.current.srcObject = stream;
+          recordVideoRef.current.play().catch(() => {});
+        }
+        setRecordCameraReady(true);
+
+        recordChunksRef.current = [];
+        recorder = new MediaRecorder(stream, { mimeType });
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordChunksRef.current.push(e.data);
+        };
+        recorder.onstop = () => {
+          if (flipInProgressRef.current) {
+            flipInProgressRef.current = false;
+            return;
+          }
+          if (recordChunksRef.current.length === 0) return;
+          const blob = new Blob(recordChunksRef.current, { type: mimeType });
+          const url = URL.createObjectURL(blob);
+          const file = new File([blob], `recorded_${Date.now()}.webm`, { type: mimeType });
+          setSelectedFiles([file]);
+          setPreviewUrls([url]);
+          setShowPublish(true);
+          setIsRecording(false);
+          setRecordTime(0);
+          setRecordCameraReady(false);
+        };
+        mediaRecorderRef.current = recorder;
+        recorder.start(100);
+
+        setRecordTime(0);
+        timer = setInterval(() => setRecordTime((t) => t + 1), 1000);
+      } catch (err) {
+        console.error("Failed to start recording:", err);
+        setUploadError("Camera/microphone access denied. Please allow permissions to record.");
+        setIsRecording(false);
+      }
+    };
+
     if (isRecording) {
-      timerRef.current = setInterval(() => setRecordTime((t) => t + 1), 1000);
+      startRecording();
     } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-      setRecordTime(0);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      if (recordVideoRef.current) recordVideoRef.current.srcObject = null;
+      recordStreamRef.current = null;
+      setRecordCameraReady(false);
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [isRecording]);
+
+    return () => {
+      if (timer) clearInterval(timer);
+      if (recorder && recorder.state !== "inactive") {
+        recorder.stop();
+      }
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+        if (recordStreamRef.current === stream) recordStreamRef.current = null;
+      }
+    };
+  }, [isRecording, recordFacingMode]);
+
+  const handleFlipRecordCamera = () => {
+    flipInProgressRef.current = true;
+    setRecordCameraReady(false);
+    setRecordFacingMode((prev) => (prev === "user" ? "environment" : "user"));
+  };
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
@@ -209,7 +327,6 @@ export default function CreatePage() {
 
   const handleStopRecording = () => {
     setIsRecording(false);
-    setShowPublish(true);
   };
 
   const handlePublish = async () => {
@@ -383,18 +500,167 @@ export default function CreatePage() {
     }
   };
 
+  const handleMusicPreview = (track: string) => {
+    if (musicPlaying === track) {
+      if (musicAudioRef.current) {
+        musicAudioRef.current.pause();
+        musicAudioRef.current = null;
+      }
+      setMusicPlaying(null);
+      return;
+    }
+    setMusicPlaying(track);
+    setSelectedMusic(track);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+      setTimeout(() => setMusicPlaying(null), 500);
+    } catch {
+      setTimeout(() => setMusicPlaying(null), 500);
+    }
+  };
+
+  const handleGenerateCaptions = () => {
+    setIsGeneratingCaptions(true);
+    setGeneratedCaptions(null);
+    setTimeout(() => {
+      setGeneratedCaptions("🎤 Auto-generated captions will appear here in your final video.");
+      setIsGeneratingCaptions(false);
+    }, 2000);
+  };
+
+  const handleVoiceoverRecord = async () => {
+    if (isVoiceoverRecording) {
+      voiceoverRecorderRef.current?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setVoiceoverTime(0);
+      voiceoverChunksRef.current = [];
+      const mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
+      const recorder = new MediaRecorder(stream, { mimeType: mime });
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) voiceoverChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(voiceoverChunksRef.current, { type: mime });
+        const url = URL.createObjectURL(blob);
+        setVoiceoverUrl(url);
+        setIsVoiceoverRecording(false);
+        setVoiceoverTime(0);
+        if (voiceoverTimerRef.current) clearInterval(voiceoverTimerRef.current);
+      };
+      voiceoverRecorderRef.current = recorder;
+      recorder.start(100);
+      setIsVoiceoverRecording(true);
+      voiceoverTimerRef.current = setInterval(() => setVoiceoverTime((t) => t + 1), 1000);
+    } catch {
+      setUploadError("Microphone access denied.");
+    }
+  };
+
+  const handleDeleteVoiceover = () => {
+    if (voiceoverUrl) URL.revokeObjectURL(voiceoverUrl);
+    setVoiceoverUrl(null);
+  };
+
+  const handleSaveDraft = () => {
+    const id = `draft_${Date.now()}`;
+    const data = {
+      caption,
+      hashtags,
+      privacy,
+      selectedMusic,
+      selectedEffect,
+      selectedBackground,
+      generatedCaptions,
+      aiEnhancements,
+      trimStart,
+      trimEnd,
+      voiceoverUrl,
+    };
+    const newDraft = { id, title: caption || "Untitled draft", data, createdAt: Date.now() };
+    const next = [newDraft, ...drafts].slice(0, 20);
+    setDrafts(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("voxel_create_drafts", JSON.stringify(next));
+    }
+  };
+
+  const handleLoadDraft = (draft: typeof drafts[0]) => {
+    setCaption(draft.data.caption as string);
+    setHashtags(draft.data.hashtags as string);
+    setPrivacy(draft.data.privacy as string);
+    setSelectedMusic(draft.data.selectedMusic as string | null);
+    setSelectedEffect(draft.data.selectedEffect as string | null);
+    setSelectedBackground(draft.data.selectedBackground as string | null);
+    setGeneratedCaptions(draft.data.generatedCaptions as string | null);
+    setAiEnhancements(draft.data.aiEnhancements as string[]);
+    setTrimStart(draft.data.trimStart as number);
+    setTrimEnd(draft.data.trimEnd as number);
+    setVoiceoverUrl(draft.data.voiceoverUrl as string | null);
+    setActivePanel(null);
+  };
+
+  const handleDeleteDraft = (id: string) => {
+    const next = drafts.filter((d) => d.id !== id);
+    setDrafts(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("voxel_create_drafts", JSON.stringify(next));
+    }
+  };
+
+  const effectMap: Record<string, string> = {
+    "✨": "brightness(1.15)",
+    "🔥": "contrast(1.2)",
+    "💫": "saturate(1.5)",
+    "🌟": "sepia(0.4)",
+    "💎": "grayscale(1)",
+    "🎨": "hue-rotate(90deg)",
+    "🌈": "invert(1)",
+    "⚡": "blur(2px)",
+  };
+
+  const backgroundMap: Record<string, string> = {
+    "Beach": "linear-gradient(to bottom right, #38bdf8, #f0abfc)",
+    "Studio": "linear-gradient(to bottom right, #4b5563, #1f2937)",
+    "City": "linear-gradient(to bottom right, #7c3aed, #db2777)",
+    "Nature": "linear-gradient(to bottom right, #22c55e, #064e3b)",
+    "Abstract": "linear-gradient(to bottom right, #f97316, #8b5cf6, #ec4899)",
+    "Solid": "#000000",
+  };
+
+  const musicList = [
+    { name: "Afrobeats Mix", artist: "DJ Flex", duration: "0:30" },
+    { name: "Highlife Remix", artist: "Nana Ama", duration: "0:28" },
+    { name: "Amapiano Beat", artist: "Kojo 360", duration: "0:45" },
+    { name: "Ghana Drill", artist: "Kwame Jr", duration: "0:35" },
+  ];
+
   const panelContent: Record<string, { title: string; content: React.ReactNode }> = {
     upload: { title: "Upload Media", content: <div className="border-2 border-dashed border-white/10 rounded-2xl p-4 sm:p-8 text-center touch-feedback cursor-pointer" onClick={() => fileInputRef.current?.click()}><Upload className="w-10 h-10 sm:w-16 sm:h-16 mx-auto text-vox-muted mb-3" /><p className="text-sm sm:text-base font-semibold text-white">Drag & drop or click to upload</p><p className="text-xs text-vox-muted mt-1">MP4, MOV, JPG, PNG up to 500MB</p><button className="mt-4 btn-gradient rounded-full px-4 py-2 text-sm font-semibold text-white touch-feedback" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>Browse Files</button></div> },
-    "ai-edit": { title: "AI Edit", content: <div className="space-y-2"><p className="text-sm text-vox-muted">AI will auto-enhance your video:</p><div className="space-y-1.5">{["Auto color correction", "Stabilization", "Noise reduction", "Smart cropping"].map((f) => <div key={f} className="flex items-center gap-2 text-xs text-white"><Check className="w-3.5 h-3.5 text-vox-green" />{f}</div>)}</div></div> },
-    music: { title: "Add Music", content: <div className="space-y-2">{["Afrobeats Mix - DJ Flex", "Highlife Remix - Nana Ama", "Amapiano Beat - Kojo 360", "Ghana Drill - Kwame Jr"].map((s) => <button key={s} className="w-full flex items-center justify-between p-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-sm text-white touch-feedback transition-colors"><span>{s}</span><span className="text-xs text-vox-pink">Use</span></button>)}</div> },
-    trim: { title: "Trim & Split", content: <div className="text-center py-6"><p className="text-sm text-vox-muted">Trim controls will appear here after recording</p></div> },
-    captions: { title: "Auto Captions", content: <div className="text-center py-6"><p className="text-sm text-vox-muted">Captions will be generated in 40+ languages</p><button className="mt-3 btn-gradient text-white text-xs font-semibold px-4 py-2 rounded-xl touch-feedback">Generate Captions</button></div> },
-    effects: { title: "Effects & Filters", content: <div className="grid grid-cols-4 gap-2">{["✨", "🔥", "💫", "🌟", "💎", "🎨", "🌈", "⚡"].map((e) => <button key={e} className="aspect-square rounded-xl bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-2xl touch-feedback transition-colors">{e}</button>)}</div> },
-    background: { title: "Virtual Background", content: <div className="grid grid-cols-3 gap-2">{["Beach", "Studio", "City", "Nature", "Abstract", "Solid"].map((bg) => <button key={bg} className="aspect-video rounded-xl bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-xs text-white touch-feedback transition-colors">{bg}</button>)}</div> },
-    voiceover: { title: "Voiceover", content: <div className="text-center py-6"><button className="w-16 h-16 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink flex items-center justify-center mx-auto touch-feedback"><span className="text-2xl">🎙️</span></button><p className="text-sm text-vox-muted mt-3">Tap to start recording voiceover</p></div> },
+    "ai-edit": { title: "AI Edit", content: <div className="space-y-3">{["Auto color correction", "Stabilization", "Noise reduction", "Smart cropping"].map((f) => <button key={f} onClick={() => { setAiEnhancements((prev) => prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]); }} className={aiEnhancements.includes(f) ? "w-full text-left p-3 rounded-xl touch-feedback transition-colors flex items-center justify-between text-sm bg-vox-green/20 border border-vox-green text-white" : "w-full text-left p-3 rounded-xl touch-feedback transition-colors flex items-center justify-between text-sm bg-white/[0.04] text-white hover:bg-white/[0.08]"}><span>{f}</span>{aiEnhancements.includes(f) ? <Check className="w-4 h-4 text-vox-green" /> : null}</button>)}</div> },
+    music: { title: "Add Music", content: <div className="space-y-2">{musicList.map((s) => <button key={s.name} onClick={() => handleMusicPreview(s.name)} className={selectedMusic === s.name ? "w-full flex items-center justify-between p-3 rounded-xl touch-feedback transition-colors bg-vox-pink/20 border border-vox-pink" : "w-full flex items-center justify-between p-3 rounded-xl touch-feedback transition-colors bg-white/[0.04] hover:bg-white/[0.08]"}><div className="text-left"><p className="text-sm text-white font-medium">{s.name} <span className="text-vox-muted font-normal">— {s.artist}</span></p><p className="text-xs text-vox-muted">{s.duration}</p></div><span className="text-xs text-vox-pink">{musicPlaying === s.name ? "Playing..." : selectedMusic === s.name ? "Selected" : "Preview"}</span></button>)}</div> },
+    trim: { title: "Trim & Split", content: <div className="space-y-4 px-1"><p className="text-sm text-vox-muted">Select start and end points</p><div className="space-y-2"><label className="text-xs text-vox-muted">Start: {trimStart}%</label><input type="range" min="0" max={trimEnd - 5} value={trimStart} onChange={(e) => setTrimStart(Number(e.target.value))} className="w-full" style={{ accentColor: "#ec4899" }} /></div><div className="space-y-2"><label className="text-xs text-vox-muted">End: {trimEnd}%</label><input type="range" min={trimStart + 5} max="100" value={trimEnd} onChange={(e) => setTrimEnd(Number(e.target.value))} className="w-full" style={{ accentColor: "#ec4899" }} /></div><p className="text-xs text-vox-muted">Preview control only. Real trimming not supported in browser.</p></div> },
+    captions: { title: "Auto Captions", content: <div className="space-y-3"><button onClick={handleGenerateCaptions} disabled={isGeneratingCaptions} className="btn-gradient w-full rounded-full py-2.5 text-sm font-semibold text-white touch-feedback disabled:opacity-60">{isGeneratingCaptions ? <><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Generating...</> : "Generate Captions"}</button>{generatedCaptions && <div className="p-3 rounded-xl bg-white/[0.04] text-sm text-white border border-white/10">{generatedCaptions}</div>}</div> },
+    effects: { title: "Effects & Filters", content: <div className="grid grid-cols-4 gap-2">{["✨", "🔥", "💫", "🌟", "💎", "🎨", "🌈", "⚡"].map((e) => <button key={e} onClick={() => setSelectedEffect(selectedEffect === e ? null : e)} className={selectedEffect === e ? "aspect-square rounded-xl touch-feedback transition-colors flex items-center justify-center text-2xl bg-vox-pink/30 border border-vox-pink" : "aspect-square rounded-xl touch-feedback transition-colors flex items-center justify-center text-2xl bg-white/[0.06] hover:bg-white/[0.12]"}>{e}</button>)}</div> },
+    background: { title: "Virtual Background", content: <div className="grid grid-cols-3 gap-2">{["Beach", "Studio", "City", "Nature", "Abstract", "Solid"].map((bg) => <button key={bg} onClick={() => setSelectedBackground(selectedBackground === bg ? null : bg)} className={selectedBackground === bg ? "aspect-video rounded-xl touch-feedback transition-colors flex items-center justify-center text-xs font-medium ring-2 ring-vox-pink" : "aspect-video rounded-xl touch-feedback transition-colors flex items-center justify-center text-xs font-medium"} style={{ background: backgroundMap[bg] }}><span className="drop-shadow-md text-white/90">{bg}</span></button>)}</div> },
+    voiceover: { title: "Voiceover", content: <div className="space-y-4 text-center py-2">{voiceoverUrl ? <div className="space-y-3"><audio src={voiceoverUrl} controls className="w-full" /><button onClick={handleDeleteVoiceover} className="text-xs text-red-400 hover:text-red-300 touch-feedback">Delete voiceover</button></div> : <><button onClick={handleVoiceoverRecord} className={isVoiceoverRecording ? "w-16 h-16 rounded-full flex items-center justify-center mx-auto touch-feedback transition-colors bg-red-600 animate-pulse" : "w-16 h-16 rounded-full flex items-center justify-center mx-auto touch-feedback transition-colors bg-gradient-to-br from-vox-purple to-vox-pink"}><span className="text-2xl">🎙️</span></button><p className="text-sm text-vox-muted">{isVoiceoverRecording ? `Recording... ${voiceoverTime}s (tap to stop)` : "Tap to record voiceover"}</p></>}</div> },
     remix: { title: "Remix Content", content: <div className="text-center py-6"><p className="text-sm text-vox-muted">Select a video from your feed to remix</p><button onClick={() => router.push("/")} className="mt-3 btn-gradient text-white text-xs font-semibold px-4 py-2 rounded-xl touch-feedback">Browse Feed</button></div> },
     photo: { title: "Take Photo", content: <div className="text-center py-6"><ImageIcon className="w-12 h-12 mx-auto text-vox-muted mb-3" /><p className="text-sm text-vox-muted">Upload a photo from your device</p><button onClick={() => photoInputRef.current?.click()} className="mt-3 btn-gradient text-white text-xs font-semibold px-4 py-2 rounded-xl touch-feedback">Choose Photo</button></div> },
-    drafts: { title: "Saved Drafts", content: <div className="text-center py-6"><p className="text-sm text-vox-muted">No drafts saved yet</p></div> },
+    drafts: { title: "Saved Drafts", content: <div className="space-y-3 max-h-[60vh] overflow-y-auto scrollbar-hide">{drafts.length === 0 ? <p className="text-center text-sm text-vox-muted py-6">No drafts saved yet</p> : drafts.map((d) => <div key={d.id} className="p-3 rounded-xl bg-white/[0.04] flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-sm text-white truncate font-medium">{d.title}</p><p className="text-xs text-vox-muted">{new Date(d.createdAt).toLocaleString()}</p></div><div className="flex items-center gap-1"><button onClick={() => handleLoadDraft(d)} className="px-3 py-1.5 rounded-lg bg-vox-purple/20 text-xs text-white touch-feedback">Load</button><button onClick={() => handleDeleteDraft(d.id)} className="px-3 py-1.5 rounded-lg bg-red-500/20 text-xs text-red-400 touch-feedback">Del</button></div></div>)}<button onClick={handleSaveDraft} className="w-full btn-gradient rounded-full py-2.5 text-sm font-semibold text-white touch-feedback">Save Current as Draft</button></div> },
   };
 
   return (
@@ -434,7 +700,7 @@ export default function CreatePage() {
           </motion.div>
 
           {/* Main Upload Actions */}
-          <div className="mt-6 grid grid-cols-3 gap-3">
+          <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
             {/* Upload Photo */}
             <motion.button
               initial={{ opacity: 0, scale: 0.9 }}
@@ -482,6 +748,22 @@ export default function CreatePage() {
               </div>
               <span className="text-white font-semibold text-xs sm:text-sm">Post Ad</span>
             </motion.button>
+
+            {/* VOXLIVE */}
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.4, delay: 0.4 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => router.push("/live")}
+              className="bg-gradient-to-br from-vox-danger to-vox-pink rounded-2xl py-4 flex flex-col items-center gap-2 touch-feedback group"
+            >
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Radio className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-white font-semibold text-xs sm:text-sm">VOXLIVE</span>
+            </motion.button>
           </div>
 
           {/* Quick tip */}
@@ -491,7 +773,7 @@ export default function CreatePage() {
             transition={{ delay: 0.5 }}
             className="text-center text-xs text-vox-muted mt-4"
           >
-            Choose how you want to create. Upload photos, videos, or post an ad to the marketplace.
+            Choose how you want to create. Upload photos, videos, post an ad, or go live with VOXLIVE.
           </motion.p>
         </div>
       </motion.div>
@@ -605,38 +887,129 @@ export default function CreatePage() {
         </motion.section>
       </div>
 
-      {/* ═══════ RECORDING OVERLAY ═══════ */}
+      {/* ═══════ RECORDING OVERLAY (TikTok style) ═══════ */}
       <AnimatePresence>
         {isRecording && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[70] bg-black flex flex-col items-center justify-center"
+            className="fixed inset-0 z-[70] bg-black"
           >
-            <div className="absolute top-6 left-6 flex items-center gap-3">
-              <span className="flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
-                <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                REC
-              </span>
-              <span className="text-white text-lg font-mono font-bold">{formatTime(recordTime)}</span>
-            </div>
-            <button onClick={() => setIsRecording(false)} className="absolute top-6 right-6 w-10 h-10 rounded-full glass touch-feedback flex items-center justify-center text-white/60 hover:text-white">
-              <X className="w-5 h-5" />
-            </button>
-            <div className="w-full max-w-sm aspect-[9/16] rounded-3xl bg-gradient-to-br from-vox-purple/20 via-vox-bg to-vox-pink/20 flex items-center justify-center relative overflow-hidden">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-32 h-32 rounded-full border-4 border-vox-pink/30 animate-ping" />
+            {/* Full-screen camera */}
+            <video
+              ref={(el) => {
+                recordVideoRef.current = el;
+                if (el && recordStreamRef.current && el.srcObject !== recordStreamRef.current) {
+                  el.srcObject = recordStreamRef.current;
+                  el.play().catch(() => {});
+                }
+              }}
+              autoPlay
+              playsInline
+              muted
+              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300"
+              style={{
+                transform: recordFacingMode === "user" ? "scaleX(-1)" : undefined,
+                filter: selectedEffect ? effectMap[selectedEffect] : undefined,
+                opacity: recordCameraReady ? 1 : 0,
+              }}
+            />
+            {!recordCameraReady && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                <div className="w-12 h-12 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                <p className="text-white/60 text-sm">Starting camera...</p>
               </div>
-              <p className="text-white/40 text-sm relative z-10">Recording...</p>
-            </div>
-            <button
-              onClick={handleStopRecording}
-              className="mt-8 w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 touch-feedback transition-colors flex items-center justify-center"
+            )}
+
+            {/* Top gradient */}
+            <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-black/60 to-transparent pointer-events-none" />
+
+            {/* Top bar */}
+            <div
+              className="absolute top-0 inset-x-0 flex items-center justify-between px-4 pt-4"
+              style={{ paddingTop: "calc(var(--safe-top, 0px) + 16px)" }}
             >
-              <span className="w-6 h-6 bg-white rounded-sm" />
-            </button>
-            <p className="text-white/60 text-xs mt-3">Tap to stop recording</p>
+              <button
+                onClick={() => setIsRecording(false)}
+                className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm touch-feedback flex items-center justify-center text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-2 bg-black/40 backdrop-blur-sm rounded-full px-3.5 py-1.5">
+                <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                <span className="text-white text-sm font-mono font-bold">{formatTime(recordTime)}</span>
+              </div>
+              <div className="w-10 h-10" />
+            </div>
+
+            {/* Right side controls */}
+            <div className="absolute right-3 top-1/4 flex flex-col items-center gap-5">
+              <button
+                onClick={handleFlipRecordCamera}
+                className="flex flex-col items-center gap-1 touch-feedback"
+              >
+                <span className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-xl">🔄</span>
+                <span className="text-white text-[10px] font-medium drop-shadow">Flip</span>
+              </button>
+              <button
+                onClick={() => setShowRecordEffects((v) => !v)}
+                className="flex flex-col items-center gap-1 touch-feedback"
+              >
+                <span className={`w-11 h-11 rounded-full backdrop-blur-sm flex items-center justify-center text-xl ${showRecordEffects ? "bg-vox-pink/60" : "bg-black/40"}`}>✨</span>
+                <span className="text-white text-[10px] font-medium drop-shadow">Effects</span>
+              </button>
+              {selectedEffect && (
+                <button
+                  onClick={() => setSelectedEffect(null)}
+                  className="flex flex-col items-center gap-1 touch-feedback"
+                >
+                  <span className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-xl">🚫</span>
+                  <span className="text-white text-[10px] font-medium drop-shadow">Clear</span>
+                </button>
+              )}
+            </div>
+
+            {/* Effects strip */}
+            <AnimatePresence>
+              {showRecordEffects && (
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 16 }}
+                  className="absolute bottom-36 inset-x-0 flex justify-center"
+                >
+                  <div className="flex items-center gap-2 bg-black/50 backdrop-blur-md rounded-full px-3 py-2">
+                    {Object.keys(effectMap).map((e) => (
+                      <button
+                        key={e}
+                        onClick={() => setSelectedEffect(selectedEffect === e ? null : e)}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center text-lg touch-feedback transition-all ${selectedEffect === e ? "bg-vox-pink/60 scale-110" : "bg-white/10"}`}
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Bottom gradient */}
+            <div className="absolute bottom-0 inset-x-0 h-40 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
+
+            {/* Bottom controls */}
+            <div
+              className="absolute bottom-0 inset-x-0 flex flex-col items-center pb-8"
+              style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 32px)" }}
+            >
+              <button
+                onClick={handleStopRecording}
+                className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center touch-feedback"
+              >
+                <span className="w-8 h-8 bg-red-500 rounded-md" />
+              </button>
+              <p className="text-white/80 text-xs mt-3 drop-shadow">Tap to stop recording</p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -667,18 +1040,19 @@ export default function CreatePage() {
 
               {/* Preview */}
               {previewUrls.length > 0 ? (
-                <div className="w-full rounded-xl overflow-hidden bg-black/40">
+                <div className="w-full rounded-xl overflow-hidden bg-black/40" style={{ background: selectedBackground ? backgroundMap[selectedBackground] : undefined }}>
                   {selectedFiles[0].type.startsWith("video/") ? (
                     <video
                       src={previewUrls[0]}
                       controls
                       className="w-full max-h-[300px] object-contain"
+                      style={{ filter: selectedEffect ? effectMap[selectedEffect] : undefined }}
                     />
                   ) : (
-                    <div className="grid grid-cols-2 gap-1">
+                    <div className="grid grid-cols-2 gap-1 p-1">
                       {previewUrls.map((url, i) => (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img key={i} src={url} alt={`Preview ${i + 1}`} className="w-full aspect-square object-cover rounded-lg" />
+                        <img key={i} src={url} alt={`Preview ${i + 1}`} className="w-full aspect-square object-cover rounded-lg" style={{ filter: selectedEffect ? effectMap[selectedEffect] : undefined }} />
                       ))}
                     </div>
                   )}

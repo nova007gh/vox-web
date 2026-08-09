@@ -40,6 +40,7 @@ import {
 } from "@/lib/firebase-store";
 import { useAuth } from "@/lib/auth-context";
 import { accounts } from "@/lib/accounts";
+import { addNotification } from "@/lib/content-store";
 
 const trendingHashtags = [
   { tag: "afrobeats" },
@@ -178,6 +179,18 @@ function CommentModal({ post, onClose, onUpdate }: { post: Post; onClose: () => 
     setComments(prev => [...prev, newComment]);
     onUpdate?.(post.id, newComment);
     await addComment(post.id, newComment);
+    // Send notification to post author
+    if (post.authorUsername !== currentUser.username) {
+      addNotification(post.authorUsername, {
+        type: "comment",
+        fromUsername: currentUser.username,
+        fromName: currentUser.name,
+        fromAvatar: currentUser.avatar || "",
+        message: "commented on your post",
+        detail: `"${text.slice(0, 40)}"`,
+        postId: post.id,
+      });
+    }
     setCommentText("");
   };
 
@@ -258,6 +271,7 @@ function CommentModal({ post, onClose, onUpdate }: { post: Post; onClose: () => 
    ═══════════════════════════════════════════ */
 export default function HomeFeed() {
   const router = useRouter();
+  const { currentUser } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -392,6 +406,18 @@ export default function HomeFeed() {
     if (post) {
       const newLikes = Math.max(0, post.likes + (newLikedByMe ? 1 : -1));
       updatePost(postId, { likedByMe: newLikedByMe, likes: newLikes });
+      // Send notification to post author
+      if (newLikedByMe && currentUser) {
+        addNotification(post.authorUsername, {
+          type: "like",
+          fromUsername: currentUser.username,
+          fromName: currentUser.name,
+          fromAvatar: currentUser.avatar || "",
+          message: "liked your post",
+          detail: post.caption ? `"${post.caption.slice(0, 40)}"` : undefined,
+          postId,
+        });
+      }
     }
   };
 
@@ -432,6 +458,19 @@ export default function HomeFeed() {
       setCoinBalance((prev) => prev - gift.cost);
       showToast(`Sent ${gift.emoji} ${gift.name}!`);
       setShowGiftModal(false);
+      // Send notification to post author
+      const post = visiblePosts[currentIndex];
+      if (post && currentUser) {
+        addNotification(post.authorUsername, {
+          type: "gift",
+          fromUsername: currentUser.username,
+          fromName: currentUser.name,
+          fromAvatar: currentUser.avatar || "",
+          message: "sent you a gift",
+          detail: `${gift.emoji} ${gift.name}`,
+          postId: post.id,
+        });
+      }
     } else {
       showToast("Not enough coins!");
     }

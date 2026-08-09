@@ -22,6 +22,7 @@ import {
   isFollowing,
   getUserPosts,
   formatCount,
+  addNotification,
   type Post,
 } from "@/lib/content-store";
 import { subscribeToUserPosts } from "@/lib/firebase-store";
@@ -165,6 +166,16 @@ export default function ProfileView({ username }: ProfileViewProps) {
     showToast(
       newState ? `Now following ${account?.name}` : `Unfollowed ${account?.name}`
     );
+    // Send follow notification
+    if (newState && currentUser) {
+      addNotification(username, {
+        type: "follow",
+        fromUsername: currentUser.username,
+        fromName: currentUser.name,
+        fromAvatar: currentUser.avatar || "",
+        message: "started following you",
+      });
+    }
   };
 
   const handleMessage = () => {

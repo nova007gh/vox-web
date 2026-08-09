@@ -44,10 +44,24 @@ export interface Comment {
   likes: number;
 }
 
+export interface AppNotification {
+  id: string;
+  type: "like" | "comment" | "follow" | "gift" | "mention" | "system" | "live";
+  fromUsername: string;
+  fromName: string;
+  fromAvatar: string;
+  message: string;
+  detail?: string;
+  postId?: string;
+  createdAt: number;
+  read: boolean;
+}
+
 /* ─────────────── CONSTANTS ─────────────── */
 
 const POSTS_KEY = "voxel_posts";
 const FOLLOWS_KEY = "voxel_follows";
+const NOTIFICATIONS_KEY = "voxel_notifications";
 const DB_NAME = "voxel_content_db";
 const DB_VERSION = 1;
 const STORE_NAME = "files";
@@ -489,4 +503,282 @@ export async function compressImageForFirestore(
   // Last resort: very small
   const finalCompressed = await compressImage(file, 300, 0.3);
   return finalCompressed;
+}
+
+/* ─────────────── NOTIFICATIONS ─────────────── */
+
+export function getNotifications(username: string): AppNotification[] {
+  if (typeof window === "undefined") return [];
+  const all = JSON.parse(window.localStorage.getItem(NOTIFICATIONS_KEY) || "{}");
+  const userNotifs = all[username] || [];
+  return userNotifs.sort((a: AppNotification, b: AppNotification) => b.createdAt - a.createdAt);
+}
+
+export function getUnreadCount(username: string): number {
+  return getNotifications(username).filter((n: AppNotification) => !n.read).length;
+}
+
+export function addNotification(
+  targetUsername: string,
+  notif: Omit<AppNotification, "id" | "createdAt" | "read">,
+): void {
+  if (typeof window === "undefined") return;
+  if (targetUsername === notif.fromUsername) return; // don't notify self
+  const all = JSON.parse(window.localStorage.getItem(NOTIFICATIONS_KEY) || "{}");
+  const userNotifs = all[targetUsername] || [];
+  const newNotif: AppNotification = {
+    ...notif,
+    id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: Date.now(),
+    read: false,
+  };
+  userNotifs.unshift(newNotif);
+  // Keep only last 100 notifications
+  all[targetUsername] = userNotifs.slice(0, 100);
+  window.localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(all));
+}
+
+export function markNotificationRead(username: string, notifId: string): void {
+  if (typeof window === "undefined") return;
+  const all = JSON.parse(window.localStorage.getItem(NOTIFICATIONS_KEY) || "{}");
+  const userNotifs = all[username] || [];
+  const notif = userNotifs.find((n: AppNotification) => n.id === notifId);
+  if (notif) notif.read = true;
+  all[username] = userNotifs;
+  window.localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(all));
+}
+
+export function markAllNotificationsRead(username: string): void {
+  if (typeof window === "undefined") return;
+  const all = JSON.parse(window.localStorage.getItem(NOTIFICATIONS_KEY) || "{}");
+  const userNotifs = all[username] || [];
+  userNotifs.forEach((n: AppNotification) => { n.read = true; });
+  all[username] = userNotifs;
+  window.localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(all));
+}
+
+export function clearNotifications(username: string): void {
+  if (typeof window === "undefined") return;
+  const all = JSON.parse(window.localStorage.getItem(NOTIFICATIONS_KEY) || "{}");
+  delete all[username];
+  window.localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(all));
+}
+
+/* ─────────────── LIVE STREAMS ─────────────── */
+
+export interface LiveStream {
+  id: string;
+  hostUsername: string;
+  hostName: string;
+  hostAvatar: string;
+  title: string;
+  category: string;
+  startedAt: number;
+  viewers: number;
+  active: boolean;
+}
+
+const LIVE_KEY = "voxel_live_streams";
+
+export function getActiveStreams(): LiveStream[] {
+  if (typeof window === "undefined") return [];
+  const streams = JSON.parse(window.localStorage.getItem(LIVE_KEY) || "[]");
+  // Filter out streams older than 4 hours (cleanup)
+  const cutoff = Date.now() - 4 * 60 * 60 * 1000;
+  const active = streams.filter((s: LiveStream) => s.startedAt > cutoff && s.active);
+  if (active.length !== streams.length) {
+    window.localStorage.setItem(LIVE_KEY, JSON.stringify(active));
+  }
+  return active.sort((a: LiveStream, b: LiveStream) => b.viewers - a.viewers);
+}
+
+export function startLiveStream(data: {
+  hostUsername: string;
+  hostName: string;
+  hostAvatar: string;
+  title: string;
+  category: string;
+}): LiveStream {
+  const stream: LiveStream = {
+    id: `live_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    hostUsername: data.hostUsername,
+    hostName: data.hostName,
+    hostAvatar: data.hostAvatar,
+    title: data.title,
+    category: data.category,
+    startedAt: Date.now(),
+    viewers: 1,
+    active: true,
+  };
+  if (typeof window !== "undefined") {
+    const streams = JSON.parse(window.localStorage.getItem(LIVE_KEY) || "[]");
+    streams.push(stream);
+    window.localStorage.setItem(LIVE_KEY, JSON.stringify(streams));
+  }
+  return stream;
+}
+
+export function endLiveStream(streamId: string): void {
+  if (typeof window === "undefined") return;
+  const streams = JSON.parse(window.localStorage.getItem(LIVE_KEY) || "[]");
+  const stream = streams.find((s: LiveStream) => s.id === streamId);
+  if (stream) stream.active = false;
+  const active = streams.filter((s: LiveStream) => s.active);
+  window.localStorage.setItem(LIVE_KEY, JSON.stringify(active));
+}
+
+export function incrementStreamViewers(streamId: string, delta: number): void {
+  if (typeof window === "undefined") return;
+  const streams = JSON.parse(window.localStorage.getItem(LIVE_KEY) || "[]");
+  const stream = streams.find((s: LiveStream) => s.id === streamId);
+  if (stream) {
+    stream.viewers = Math.max(0, stream.viewers + delta);
+    window.localStorage.setItem(LIVE_KEY, JSON.stringify(streams));
+  }
+}
+
+export function getStreamById(streamId: string): LiveStream | null {
+  if (typeof window === "undefined") return null;
+  const streams = JSON.parse(window.localStorage.getItem(LIVE_KEY) || "[]");
+  return streams.find((s: LiveStream) => s.id === streamId) || null;
+}
+
+/* ─────────────── LIVE SHOPPING ─────────────── */
+
+export interface LiveProduct {
+  id: string;
+  streamId: string;
+  name: string;
+  price: number;
+  currency: string;
+  image: string;
+  description: string;
+  sold: boolean;
+}
+
+const LIVE_PRODUCTS_KEY = "voxel_live_products";
+
+export function getLiveProducts(streamId?: string): LiveProduct[] {
+  if (typeof window === "undefined") return [];
+  const all = JSON.parse(window.localStorage.getItem(LIVE_PRODUCTS_KEY) || "[]");
+  const products = streamId ? all.filter((p: LiveProduct) => p.streamId === streamId) : all;
+  return products;
+}
+
+export function addLiveProduct(product: Omit<LiveProduct, "id" | "sold">): LiveProduct {
+  const full: LiveProduct = {
+    ...product,
+    id: `prod_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    sold: false,
+  };
+  if (typeof window !== "undefined") {
+    const all = JSON.parse(window.localStorage.getItem(LIVE_PRODUCTS_KEY) || "[]");
+    all.push(full);
+    window.localStorage.setItem(LIVE_PRODUCTS_KEY, JSON.stringify(all));
+  }
+  return full;
+}
+
+export function markProductSold(productId: string): void {
+  if (typeof window === "undefined") return;
+  const all = JSON.parse(window.localStorage.getItem(LIVE_PRODUCTS_KEY) || "[]");
+  const p = all.find((p: LiveProduct) => p.id === productId);
+  if (p) p.sold = true;
+  window.localStorage.setItem(LIVE_PRODUCTS_KEY, JSON.stringify(all));
+}
+
+/* ─────────────── LIVE AUCTIONS ─────────────── */
+
+export interface LiveAuction {
+  id: string;
+  streamId: string;
+  itemName: string;
+  image: string;
+  description: string;
+  startingBid: number;
+  currentBid: number;
+  currency: string;
+  bids: number;
+  highestBidder: string;
+  endsAt: number;
+  active: boolean;
+}
+
+const LIVE_AUCTIONS_KEY = "voxel_live_auctions";
+
+export function getLiveAuctions(streamId?: string): LiveAuction[] {
+  if (typeof window === "undefined") return [];
+  const all = JSON.parse(window.localStorage.getItem(LIVE_AUCTIONS_KEY) || "[]");
+  const active = all.filter((a: LiveAuction) => a.active && a.endsAt > Date.now());
+  if (active.length !== all.length) {
+    window.localStorage.setItem(LIVE_AUCTIONS_KEY, JSON.stringify(active));
+  }
+  return streamId ? active.filter((a: LiveAuction) => a.streamId === streamId) : active;
+}
+
+export function createAuction(data: Omit<LiveAuction, "id" | "currentBid" | "bids" | "highestBidder" | "active">): LiveAuction {
+  const auction: LiveAuction = {
+    ...data,
+    id: `auction_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    currentBid: data.startingBid,
+    bids: 0,
+    highestBidder: "",
+    active: true,
+  };
+  if (typeof window !== "undefined") {
+    const all = JSON.parse(window.localStorage.getItem(LIVE_AUCTIONS_KEY) || "[]");
+    all.push(auction);
+    window.localStorage.setItem(LIVE_AUCTIONS_KEY, JSON.stringify(all));
+  }
+  return auction;
+}
+
+export function placeBid(auctionId: string, bidderName: string, amount: number): { success: boolean; error?: string } {
+  if (typeof window === "undefined") return { success: false };
+  const all = JSON.parse(window.localStorage.getItem(LIVE_AUCTIONS_KEY) || "[]");
+  const auction = all.find((a: LiveAuction) => a.id === auctionId);
+  if (!auction) return { success: false, error: "Auction not found" };
+  if (!auction.active || auction.endsAt <= Date.now()) return { success: false, error: "Auction ended" };
+  if (amount <= auction.currentBid) return { success: false, error: "Bid must be higher than current bid" };
+  auction.currentBid = amount;
+  auction.highestBidder = bidderName;
+  auction.bids += 1;
+  window.localStorage.setItem(LIVE_AUCTIONS_KEY, JSON.stringify(all));
+  return { success: true };
+}
+
+/* ─────────────── SEED DEMO DATA ─────────────── */
+
+const SEED_KEY = "voxel_live_seeded_v2";
+
+export function seedLiveDemoData(): void {
+  if (typeof window === "undefined") return;
+  if (window.localStorage.getItem(SEED_KEY)) return;
+
+  const now = Date.now();
+
+  const demoStreams: LiveStream[] = [
+    { id: `live_demo_1`, hostUsername: "afro_queen", hostName: "Afro Queen", hostAvatar: "https://images.unsplash.com/photo-1531123897727-8f129e168847?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces", title: "Goddess Braids Tutorial ✨", category: "Beauty", startedAt: now - 600000, viewers: 15400, active: true },
+    { id: `live_demo_2`, hostUsername: "just_wearwigs", hostName: "JUST WEAR WIGS", hostAvatar: "/profiles/justwearwigs/avatar.jpeg", title: "Wig Collection Tour 💇‍♀️", category: "Beauty", startedAt: now - 1200000, viewers: 12300, active: true },
+    { id: `live_demo_3`, hostName: "Glow By Nana", hostUsername: "glow_by_nana", hostAvatar: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces", title: "Glow Makeup Session 💄", category: "Beauty", startedAt: now - 300000, viewers: 8693, active: true },
+    { id: `live_demo_4`, hostName: "Hair By Maame", hostUsername: "hair_by_maame", hostAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces", title: "Hair Styling Live 🔥", category: "Beauty", startedAt: now - 900000, viewers: 5100, active: true },
+    { id: `live_demo_5`, hostName: "Berry Beauty", hostUsername: "berry_beauty", hostAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces", title: "Skincare Routine Live", category: "Beauty", startedAt: now - 1800000, viewers: 3200, active: true },
+    { id: `live_demo_6`, hostName: "Wigs By Akua", hostUsername: "wigs_by_akua", hostAvatar: "https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces", title: "Lace Frontal Install", category: "Beauty", startedAt: now - 600000, viewers: 2800, active: true },
+  ];
+  window.localStorage.setItem(LIVE_KEY, JSON.stringify(demoStreams));
+
+  const demoProducts: LiveProduct[] = [
+    { id: `prod_demo_1`, streamId: "live_demo_2", name: "Silk Press Straight", price: 4200, currency: "GHS", image: "https://images.unsplash.com/photo-1522337360788-8b13dee7b37e?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Premium silk press wig, 18 inches", sold: false },
+    { id: `prod_demo_2`, streamId: "live_demo_2", name: "Ombre Color Masterpiece", price: 8300, currency: "GHS", image: "https://images.unsplash.com/photo-1605497788044-5a32c70ecbc7?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Ombre colored lace front wig", sold: false },
+    { id: `prod_demo_3`, streamId: "live_demo_2", name: "Curly Goddess Curls", price: 2500, currency: "GHS", image: "https://images.unsplash.com/photo-1554466231-296474d5b1c9?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Curly goddess wig, natural texture", sold: false },
+  ];
+  window.localStorage.setItem(LIVE_PRODUCTS_KEY, JSON.stringify(demoProducts));
+
+  const demoAuctions: LiveAuction[] = [
+    { id: `auction_demo_1`, streamId: "live_demo_2", itemName: "Ombre Color Masterpiece - Custom", image: "https://images.unsplash.com/photo-1605497788044-5a32c70ecbc7?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Custom ombre lace front, any length", startingBid: 5000, currentBid: 8300, currency: "GHS", bids: 23, highestBidder: "AmaFan123", endsAt: now + 154000, active: true },
+    { id: `auction_demo_2`, streamId: "live_demo_2", itemName: "Ocean Wave Goddess - Premium", image: "https://images.unsplash.com/photo-1499209974431-9fccce79dc47?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Premium ocean wave wig, 22 inches", startingBid: 6000, currentBid: 8500, currency: "GHS", bids: 41, highestBidder: "EsiLovesHair", endsAt: now + 312000, active: true },
+  ];
+  window.localStorage.setItem(LIVE_AUCTIONS_KEY, JSON.stringify(demoAuctions));
+
+  window.localStorage.setItem(SEED_KEY, "1");
 }

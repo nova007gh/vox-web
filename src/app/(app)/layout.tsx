@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import { subscribeToUnreadCount } from "@/lib/firebase-store";
+import { getUnreadCount, getActiveStreams } from "@/lib/content-store";
 import {
   Home,
   PlusCircle,
@@ -24,9 +25,9 @@ import {
 const mainNav = [
   { icon: Home, label: "Home", href: "/", matchPrefix: "/" },
   { icon: Compass, label: "Explore", href: "/explore", matchPrefix: "/explore" },
-  { icon: Radio, label: "LIVE", href: "/live", matchPrefix: "/live", badge: "3" },
-  { icon: MessageCircle, label: "Messages", href: "/messages", matchPrefix: "/messages", badge: "5" },
-  { icon: Bell, label: "Alerts", href: "/notifications", matchPrefix: "/notifications", badge: "12" },
+  { icon: Radio, label: "LIVE", href: "/live", matchPrefix: "/live" },
+  { icon: MessageCircle, label: "Messages", href: "/messages", matchPrefix: "/messages" },
+  { icon: Bell, label: "Alerts", href: "/notifications", matchPrefix: "/notifications" },
   { icon: ShoppingBag, label: "Marketplace", href: "/marketplace", matchPrefix: "/marketplace" },
   { icon: Megaphone, label: "Marketing", href: "/marketing", matchPrefix: "/marketing" },
   { icon: Wallet, label: "Wallet", href: "/wallet", matchPrefix: "/wallet" },
@@ -47,6 +48,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { currentUser, hydrated } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notifCount, setNotifCount] = useState(0);
+  const [liveCount, setLiveCount] = useState(0);
 
   // Subscribe to real-time unread message count
   const prevUnreadRef = useRef(0);
@@ -79,6 +82,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (currentUser && "Notification" in window && Notification.permission === "default") {
       Notification.requestPermission().catch(() => {});
     }
+  }, [currentUser]);
+
+  // Update notification and live stream counts
+  useEffect(() => {
+    if (!currentUser) {
+      setNotifCount(0);
+      setLiveCount(0);
+      return;
+    }
+    const updateCounts = () => {
+      setNotifCount(getUnreadCount(currentUser.username));
+      setLiveCount(getActiveStreams().length);
+    };
+    updateCounts();
+    const interval = setInterval(updateCounts, 5000);
+    return () => clearInterval(interval);
   }, [currentUser]);
 
   // Redirect to auth if not logged in
@@ -170,19 +189,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {!sidebarCollapsed && (
                   <>
                     <span className="text-sm font-medium">{item.label}</span>
-                    {item.label === "Messages" && unreadCount > 0 ? (
+                    {item.label === "Messages" && unreadCount > 0 && (
                       <span className="ml-auto text-[10px] font-bold bg-gradient-to-r from-vox-pink to-vox-purple text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
                         {unreadCount}
                       </span>
-                    ) : item.badge && item.label !== "Messages" ? (
+                    )}
+                    {item.label === "Alerts" && notifCount > 0 && (
                       <span className="ml-auto text-[10px] font-bold bg-gradient-to-r from-vox-pink to-vox-purple text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                        {item.badge}
+                        {notifCount}
                       </span>
-                    ) : null}
+                    )}
+                    {item.label === "LIVE" && liveCount > 0 && (
+                      <span className="ml-auto text-[10px] font-bold bg-vox-danger text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                        {liveCount}
+                      </span>
+                    )}
                   </>
                 )}
-                {sidebarCollapsed && ((item.label === "Messages" && unreadCount > 0) || (item.badge && item.label !== "Messages")) && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-vox-pink" />
+                {sidebarCollapsed && (
+                  <>
+                    {item.label === "Messages" && unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-vox-pink" />
+                    )}
+                    {item.label === "Alerts" && notifCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-vox-pink" />
+                    )}
+                    {item.label === "LIVE" && liveCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-vox-danger" />
+                    )}
+                  </>
                 )}
               </Link>
             );
