@@ -27,6 +27,7 @@ import {
   Settings,
 } from "lucide-react";
 import Link from "next/link";
+import { VOXelLogo } from "@/components/VOXelLogo";
 
 /* ──────────────────────────── constants ──────────────────────────── */
 
@@ -250,11 +251,7 @@ export default function AuthPage() {
             className="flex items-center gap-3 mb-12"
           >
             <Link href="/" className="flex items-center gap-3 select-none">
-              <img
-                src="/voxel-logo.svg"
-                alt="VOXel"
-                className="w-12 h-12 object-contain drop-shadow-[0_0_20px_rgba(124,44,255,0.3)]"
-              />
+              <VOXelLogo variant="loading" size={48} />
               <span className="text-2xl font-bold tracking-tight text-white hidden sm:inline">VOXel</span>
             </Link>
           </motion.div>
@@ -338,11 +335,7 @@ export default function AuthPage() {
                 {/* screen content */}
                 <div className="absolute inset-3 top-10 flex flex-col items-center justify-center gap-3">
                   {/* mini logo */}
-                  <img
-                    src="/voxel-logo.svg"
-                    alt="VOXel"
-                    className="w-14 h-14 object-contain drop-shadow-[0_0_20px_rgba(124,44,255,0.3)]"
-                  />
+                  <VOXelLogo variant="loading" size={56} />
                   <span className="text-white font-bold text-lg tracking-tight">
                     VOXel
                   </span>
