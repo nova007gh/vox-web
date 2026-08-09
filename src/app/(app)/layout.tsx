@@ -114,8 +114,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!hydrated || !currentUser) {
     return (
-      <div className="h-screen flex items-center justify-center bg-vox-bg">
-        <div className="w-8 h-8 rounded-full border-2 border-vox-purple/30 border-t-vox-purple animate-spin" />
+      <div className="h-screen flex flex-col items-center justify-center bg-vox-bg gap-4">
+        <motion.img
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: [1, 1.05, 1] }}
+          transition={{
+            opacity: { duration: 0.4 },
+            scale: { duration: 2, repeat: Infinity, ease: "easeInOut" },
+          }}
+          src="/voxel-logo.svg"
+          alt="VOXel"
+          className="w-24 h-24 sm:w-28 sm:h-28 drop-shadow-2xl"
+        />
       </div>
     );
   }
@@ -131,26 +141,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         {/* Logo */}
         <div className={`flex items-center h-16 px-4 ${sidebarCollapsed ? "justify-center" : "gap-2"}`}>
-          <Link href="/" className="flex items-center gap-0 shrink-0 select-none">
-            <span className={`font-bold tracking-tight ${sidebarCollapsed ? "text-lg" : "text-xl"}`}>
-              <span className="text-white">V</span>
-              <span className="relative inline-block">
-                <span
-                  className="inline-flex items-center justify-center rounded-full"
-                  style={{
-                    width: "1.1em", height: "1.1em",
-                    background: "linear-gradient(135deg, #FF8A34, #FF6A1A)",
-                    verticalAlign: "middle", lineHeight: 0, position: "relative", top: "-0.05em",
-                  }}
-                >
-                  <svg width="0.45em" height="0.5em" viewBox="0 0 10 12" fill="none" style={{ marginLeft: "0.08em" }}>
-                    <path d="M1 1.5V10.5C1 11.1667 1.6 11.5 2 11.5L9 6.5C9.66667 6 9.66667 5.5 9 5L2 0.5C1.5 0.166667 1 0.5 1 1.5Z" fill="white" />
-                  </svg>
-                </span>
-              </span>
-              <span className="bg-clip-text text-transparent" style={{ background: "linear-gradient(135deg, #FF2C91, #FF8A34)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>X</span>
-              {!sidebarCollapsed && <span className="text-white">el</span>}
-            </span>
+          <Link href="/" className="flex items-center gap-2 shrink-0 select-none">
+            <img
+              src="/voxel-logo.svg"
+              alt="VOXel"
+              className={`object-contain drop-shadow-lg ${sidebarCollapsed ? "w-9 h-9" : "w-8 h-8"}`}
+            />
+            {!sidebarCollapsed && (
+              <span className="text-white font-bold text-lg tracking-tight hidden xl:inline">VOXel</span>
+            )}
           </Link>
           {!sidebarCollapsed && (
             <button onClick={() => setSidebarCollapsed(true)} className="ml-auto text-vox-muted hover:text-white transition-colors p-1">
@@ -277,8 +276,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 }`}
               >
                 {item.isCreate ? (
-                  <div className="w-10 h-10 rounded-xl btn-gradient flex items-center justify-center -mt-4 shadow-lg shadow-vox-pink/30">
-                    <PlusCircle className="w-5 h-5 text-white" />
+                  <div className="w-12 h-12 -mt-5 transition-transform active:scale-95">
+                    <img
+                      src="/voxel-logo.svg"
+                      alt="Create"
+                      className="w-full h-full object-contain drop-shadow-[0_0_12px_rgba(255,44,145,0.4)]"
+                    />
                   </div>
                 ) : (
                   <>

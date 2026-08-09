@@ -23,12 +23,15 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "VOXel",
+    startupImage: "/voxel-logo.svg",
   },
   formatDetection: {
     telephone: false,
   },
   icons: {
-    icon: "/favicon.ico",
+    icon: "/voxel-logo.svg",
+    shortcut: "/voxel-logo.svg",
+    apple: "/voxel-logo.svg",
   },
 };
 
