@@ -23,6 +23,13 @@ import {
   Check,
   Users,
   Sparkles,
+  Search,
+  TrendingUp,
+  Crown,
+  Smile,
+  BarChart3,
+  Trophy,
+  User,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -497,10 +504,16 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
   const [bidAuction, setBidAuction] = useState<LiveAuction | null>(null);
   const [showShopping, setShowShopping] = useState(false);
   const [showAuctions, setShowAuctions] = useState(false);
+  const [giftCombo, setGiftCombo] = useState<{ icon: string; name: string; count: number; nonce: number } | null>(null);
+  const [topGifters, setTopGifters] = useState<{ name: string; avatar: string; coins: number; icon: string }[]>([]);
+  const [viewerPulse, setViewerPulse] = useState(false);
+  const [showTopGifters, setShowTopGifters] = useState(false);
   const commentRef = useRef<HTMLDivElement>(null);
   const giftIdRef = useRef(0);
   const heartIdRef = useRef(0);
   const streamIdRef = useRef(stream.id);
+  const giftComboRef = useRef<{ icon: string; name: string; count: number; nonce: number } | null>(null);
+  const comboTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -516,10 +529,29 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
 
     const interval = setInterval(() => {
       const s = getStreamById(streamId);
-      if (s) setViewers(s.viewers);
+      if (s) {
+        setViewers((prev) => {
+          if (s.viewers > prev) setViewerPulse(true);
+          return s.viewers;
+        });
+      }
       setProducts(getLiveProducts(streamId));
       setAuctions(getLiveAuctions(streamId));
     }, 3000);
+
+    // Simulated top gifters
+    const giftersInterval = setInterval(() => {
+      setTopGifters([
+        { name: "AmaFan123", avatar: "", coins: 3200 + Math.floor(Math.random() * 800), icon: "💎" },
+        { name: "EsiLovesHair", avatar: "", coins: 1850 + Math.floor(Math.random() * 400), icon: "🔥" },
+        { name: "GlowSeeker", avatar: "", coins: 920 + Math.floor(Math.random() * 200), icon: "🌹" },
+        { name: "NaturalQueen", avatar: "", coins: 480 + Math.floor(Math.random() * 100), icon: "❤️" },
+        { name: "HairLover", avatar: "", coins: 150 + Math.floor(Math.random() * 50), icon: "🚀" },
+      ].sort((a, b) => b.coins - a.coins));
+    }, 5000);
+
+    // Reset viewer pulse
+    const pulseInterval = setInterval(() => setViewerPulse(false), 600);
 
     const simComments = [
       { user: "AmaFan123", text: "The wig is gorgeous! 💇‍♀️" },
@@ -543,6 +575,8 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
     return () => {
       clearInterval(interval);
       clearInterval(commentInterval);
+      clearInterval(giftersInterval);
+      clearInterval(pulseInterval);
       incrementStreamViewers(streamId, -1);
     };
   }, []);
@@ -571,6 +605,24 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
     setTimeout(() => setFloatingGifts((prev) => prev.filter((g) => g.id !== id)), 3000);
     setGiftBurst({ icon: gift.icon, name: gift.name, cost: gift.cost, nonce: Date.now() });
     setTimeout(() => setGiftBurst((cur) => (cur && Date.now() - cur.nonce >= 2100 ? null : cur)), 2200);
+
+    // Gift combo logic
+    const now = Date.now();
+    const current = giftComboRef.current;
+    if (current && current.icon === gift.icon && now - current.nonce < 2000) {
+      const newCount = current.count + 1;
+      giftComboRef.current = { ...current, count: newCount, nonce: now };
+      setGiftCombo({ ...current, count: newCount, nonce: now });
+    } else {
+      giftComboRef.current = { icon: gift.icon, name: gift.name, count: 1, nonce: now };
+      setGiftCombo({ icon: gift.icon, name: gift.name, count: 1, nonce: now });
+    }
+    if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
+    comboTimerRef.current = setTimeout(() => {
+      setGiftCombo(null);
+      giftComboRef.current = null;
+    }, 2200);
+
     setComments((prev) => [...prev, {
       id: `gift_${Date.now()}`,
       user: currentUser?.name || "You",
@@ -739,6 +791,36 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
           )}
         </AnimatePresence>
 
+        {/* Gift combo indicator */}
+        <AnimatePresence>
+          {giftCombo && giftCombo.count > 1 && (
+            <motion.div
+              key={giftCombo.nonce}
+              initial={{ opacity: 0, scale: 0.5, x: 20 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-30 pointer-events-none"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.15, 1] }}
+                transition={{ duration: 0.3, repeat: giftCombo.count > 1 ? Infinity : 0 }}
+                className="glass-strong rounded-2xl px-4 py-3 flex flex-col items-center border border-vox-orange/30 shadow-2xl shadow-vox-orange/20"
+              >
+                <span className="text-4xl">{giftCombo.icon}</span>
+                <motion.span
+                  key={giftCombo.count}
+                  initial={{ scale: 1.5 }}
+                  animate={{ scale: 1 }}
+                  className="text-2xl font-bold text-vox-orange mt-1"
+                >
+                  x{giftCombo.count}
+                </motion.span>
+                <span className="text-[9px] text-vox-muted">COMBO!</span>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Top overlay */}
         <div className="absolute top-0 left-0 right-0 p-4 z-20" style={{ paddingTop: "calc(var(--safe-top, 0px) + 12px)" }}>
           <div className="flex items-center justify-between">
@@ -746,6 +828,28 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
               <button onClick={onClose} className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center touch-feedback border border-white/10">
                 <X className="w-5 h-5 text-white" />
               </button>
+              {/* Host profile card */}
+              <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md rounded-full pl-1.5 pr-3 py-1 border border-white/10">
+                {stream.hostAvatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={stream.hostAvatar} alt={stream.hostName} className="w-7 h-7 rounded-full object-cover ring-1 ring-white/20" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink flex items-center justify-center">
+                    <User className="w-4 h-4 text-white" />
+                  </div>
+                )}
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-white leading-tight">{stream.hostName}</span>
+                  <button
+                    onClick={handleFollow}
+                    className={`text-[9px] font-bold leading-tight ${isFollowing ? "text-vox-muted" : "text-vox-pink"}`}
+                  >
+                    {isFollowing ? "Following" : "Follow +"}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 bg-vox-danger/90 backdrop-blur-md rounded-full px-3 py-1.5">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
@@ -753,13 +857,17 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
                 </span>
                 <span className="text-xs font-bold text-white">LIVE</span>
               </div>
-              <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/10">
+              <motion.div
+                animate={viewerPulse ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+                transition={{ duration: 0.4 }}
+                className="flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/10"
+              >
                 <Eye className="w-3 h-3 text-white/80" />
                 <span className="text-xs font-medium text-white">{formatCountShort(viewers)}</span>
+              </motion.div>
+              <div className="text-xs text-white/60 font-medium bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/10">
+                {formatDuration(elapsed)}
               </div>
-            </div>
-            <div className="text-xs text-white/60 font-medium bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/10">
-              {formatDuration(elapsed)}
             </div>
           </div>
         </div>
@@ -932,12 +1040,54 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
               <Gift className="w-5 h-5 text-white" />
             </div>
           </button>
+          <button onClick={() => setShowTopGifters(!showTopGifters)} className="touch-feedback flex flex-col items-center gap-0.5">
+            <div className={`w-11 h-11 rounded-full backdrop-blur-md flex items-center justify-center border ${showTopGifters ? "bg-vox-orange/60 border-vox-orange" : "bg-black/30 border-white/10"}`}>
+              <Crown className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-[9px] font-medium text-white/80">Top</span>
+          </button>
           <button onClick={handleShare} className="touch-feedback flex flex-col items-center gap-0.5">
             <div className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10">
               <Share2 className="w-5 h-5 text-white" />
             </div>
           </button>
         </div>
+
+        {/* Top gifters overlay */}
+        <AnimatePresence>
+          {showTopGifters && (
+            <motion.div
+              initial={{ opacity: 0, y: -12, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -12, scale: 0.96 }}
+              className="absolute top-28 right-3 z-30 glass-strong rounded-2xl p-4 border border-white/10 w-48"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[9px] font-bold tracking-widest text-vox-orange">TOP GIFTERS</span>
+                <button onClick={() => setShowTopGifters(false)} className="w-6 h-6 rounded-full glass flex items-center justify-center">
+                  <X className="w-3 h-3 text-vox-muted" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                {topGifters.map((gifter, idx) => (
+                  <div key={gifter.name} className="flex items-center gap-2">
+                    <span className={`text-xs font-bold ${idx === 0 ? "text-vox-orange" : idx === 1 ? "text-vox-purple" : idx === 2 ? "text-vox-pink" : "text-vox-muted"}`}>
+                      #{idx + 1}
+                    </span>
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink flex items-center justify-center text-xs font-bold text-white">
+                      {gifter.name[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-white truncate">{gifter.name}</p>
+                      <p className="text-[9px] text-vox-orange">{formatCountShort(gifter.coins)} coins</p>
+                    </div>
+                    <span className="text-base">{gifter.icon}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Poll overlay */}
         <AnimatePresence>
@@ -1078,12 +1228,24 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
   const [comments, setComments] = useState<LiveComment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [viewers, setViewers] = useState(1);
+  const [peakViewers, setPeakViewers] = useState(1);
+  const [likes, setLikes] = useState(0);
+  const [giftsReceived, setGiftsReceived] = useState<{ icon: string; name: string; count: number }[]>([]);
+  const [totalGiftCoins, setTotalGiftCoins] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [showStreamSummary, setShowStreamSummary] = useState(false);
   const [cameraStarting, setCameraStarting] = useState(!initialStream);
+  const [beautyFilter, setBeautyFilter] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [floatingHearts, setFloatingHearts] = useState<{ id: number; left: number; size: number }[]>([]);
+  const [giftBurst, setGiftBurst] = useState<{ icon: string; name: string; cost: number; nonce: number } | null>(null);
+  const [viewerPulse, setViewerPulse] = useState(false);
   const commentRef = useRef<HTMLDivElement>(null);
   const streamIdRef = useRef(stream.id);
   const didInitRef = useRef(false);
+  const heartIdRef = useRef(0);
+  const startTimeRef = useRef(stream.startedAt);
 
   const startCamera = useCallback(async () => {
     try {
@@ -1153,31 +1315,102 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
     setFacingMode((prev) => (prev === "user" ? "environment" : "user"));
   };
 
+  const toggleBeautyFilter = () => {
+    setBeautyFilter((prev) => !prev);
+  };
+
+  // Viewer count + stats polling
   useEffect(() => {
     const streamId = streamIdRef.current;
     const interval = setInterval(() => {
       const s = getStreamById(streamId);
-      if (s) setViewers(s.viewers);
+      if (s) {
+        setViewers((prev) => {
+          if (s.viewers > prev) setViewerPulse(true);
+          if (s.viewers > peakViewers) setPeakViewers(s.viewers);
+          return s.viewers;
+        });
+      }
     }, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [peakViewers]);
 
+  // Reset viewer pulse
+  useEffect(() => {
+    if (viewerPulse) {
+      const t = setTimeout(() => setViewerPulse(false), 600);
+      return () => clearTimeout(t);
+    }
+  }, [viewerPulse]);
+
+  // Simulated comments + hearts + gifts
   useEffect(() => {
     const simComments = [
+      { user: "AmaFan123", text: "You look amazing! 🔥" },
+      { user: "EsiLovesHair", text: "Love from Kumasi! 🇬🇭" },
+      { user: "GlowSeeker", text: "How much for the frontal?" },
+      { user: "NaturalQueen", text: "Drop the link!! 🙌" },
       { user: "Viewer", text: "Hey! Great stream 🔥" },
       { user: "Fan", text: "You look amazing!" },
       { user: "Guest", text: "First time here 👋" },
-      { user: "User", text: "Where can I buy?" },
-      { user: "Viewer", text: "👏👏👏" },
-      { user: "Fan", text: "Love from Ghana! 🇬🇭" },
+      { user: "HairLover", text: "Where can I buy?" },
+      { user: "Fan", text: "👏👏👏" },
+      { user: "Viewer", text: "Love from Ghana! 🇬🇭" },
+      { user: "BeautyQueen", text: "Your content is fire! 💯" },
+      { user: "Adwoa", text: "Following you now!" },
     ];
-    const interval = setInterval(() => {
-      if (Math.random() > 0.5) {
+    const commentInterval = setInterval(() => {
+      if (Math.random() > 0.4) {
         const c = simComments[Math.floor(Math.random() * simComments.length)];
         setComments((prev) => [...prev, { id: `sim_${Date.now()}`, user: c.user, text: c.text }]);
       }
+    }, 4000 + Math.random() * 3000);
+
+    // Simulated likes
+    const likeInterval = setInterval(() => {
+      if (Math.random() > 0.3) {
+        const burst = Array.from({ length: 3 + Math.floor(Math.random() * 5) }, () => ({
+          id: ++heartIdRef.current + Date.now(),
+          left: 10 + Math.random() * 70,
+          size: 16 + Math.random() * 14,
+        }));
+        setFloatingHearts((prev) => [...prev.slice(-30), ...burst]);
+        setLikes((n) => n + burst.length);
+        setTimeout(() => {
+          setFloatingHearts((prev) => prev.filter((h) => !burst.some((b) => b.id === h.id)));
+        }, 2500);
+      }
     }, 5000 + Math.random() * 4000);
-    return () => clearInterval(interval);
+
+    // Simulated gifts
+    const giftInterval = setInterval(() => {
+      if (Math.random() > 0.7) {
+        const gift = giftTiers[Math.floor(Math.random() * giftTiers.length)];
+        setGiftBurst({ icon: gift.icon, name: gift.name, cost: gift.cost, nonce: Date.now() });
+        setTimeout(() => setGiftBurst((cur) => (cur && Date.now() - cur.nonce >= 2100 ? null : cur)), 2200);
+        setTotalGiftCoins((n) => n + gift.cost);
+        setGiftsReceived((prev) => {
+          const existing = prev.find((g) => g.icon === gift.icon);
+          if (existing) {
+            return prev.map((g) => (g.icon === gift.icon ? { ...g, count: g.count + 1 } : g));
+          }
+          return [...prev, { icon: gift.icon, name: gift.name, count: 1 }];
+        });
+        setComments((prev) => [...prev, {
+          id: `gift_${Date.now()}`,
+          user: "Viewer",
+          text: `sent a ${gift.name}!`,
+          isGift: true,
+          giftIcon: gift.icon,
+        }]);
+      }
+    }, 8000 + Math.random() * 6000);
+
+    return () => {
+      clearInterval(commentInterval);
+      clearInterval(likeInterval);
+      clearInterval(giftInterval);
+    };
   }, []);
 
   useEffect(() => {
@@ -1191,6 +1424,12 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
       streamRef.current.getTracks().forEach((t) => t.stop());
     }
     endLiveStream(streamIdRef.current);
+    setShowEndConfirm(false);
+    setShowStreamSummary(true);
+  };
+
+  const handleFinishSummary = () => {
+    setShowStreamSummary(false);
     onEnd();
   };
 
@@ -1206,7 +1445,7 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
     setCommentText("");
   };
 
-  const elapsed = Math.floor((Date.now() - stream.startedAt) / 1000);
+  const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
 
   return (
     <motion.div
@@ -1230,15 +1469,71 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
             <p className="text-white/70 text-sm">Starting camera...</p>
           </div>
         ) : (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ transform: facingMode === "user" ? "scaleX(-1)" : "none" }}
-          />
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                transform: facingMode === "user" ? "scaleX(-1)" : "none",
+                filter: beautyFilter ? "brightness(1.08) contrast(1.05) saturate(1.15) blur(0.4px)" : "none",
+                transition: "filter 0.3s ease",
+              }}
+            />
+            {beautyFilter && facingMode === "user" && (
+              <div className="absolute inset-0 pointer-events-none" style={{
+                background: "radial-gradient(ellipse at center, transparent 40%, rgba(255,200,200,0.04) 100%)",
+              }} />
+            )}
+          </>
         )}
+
+        {/* Floating hearts */}
+        <div className="absolute right-2 bottom-28 w-24 h-80 pointer-events-none overflow-hidden z-20">
+          <AnimatePresence>
+            {floatingHearts.map((h) => (
+              <motion.span
+                key={h.id}
+                initial={{ y: 0, opacity: 0, scale: 0.6, rotate: -10 }}
+                animate={{ y: -300, opacity: [0, 1, 1, 0], scale: 1.2, rotate: 8, x: [0, -14, 12, -6] }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 2, ease: "easeOut" }}
+                className="absolute bottom-0 text-vox-pink drop-shadow-lg"
+                style={{ left: `${h.left}%`, fontSize: h.size }}
+              >
+                ❤️
+              </motion.span>
+            ))}
+          </AnimatePresence>
+        </div>
+
+        {/* Gift burst */}
+        <AnimatePresence>
+          {giftBurst && (
+            <motion.div
+              key={giftBurst.nonce}
+              initial={{ opacity: 0, scale: 0.6, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 1.1, y: -20 }}
+              className="absolute left-1/2 top-[35%] -translate-x-1/2 z-30 pointer-events-none"
+            >
+              <div className="glass-strong rounded-3xl px-8 py-5 text-center border border-white/15 shadow-2xl shadow-vox-purple/30">
+                <motion.div
+                  initial={{ rotate: -20, scale: 0.7 }}
+                  animate={{ rotate: [0, 12, 0], scale: [0.7, 1.3, 1] }}
+                  transition={{ duration: 0.9 }}
+                  className="text-6xl"
+                >
+                  {giftBurst.icon}
+                </motion.div>
+                <p className="text-white font-bold mt-1.5">{giftBurst.name}</p>
+                <p className="text-xs text-vox-orange mt-0.5">+{giftBurst.cost} coins</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Top overlay */}
         <div className="absolute top-0 left-0 right-0 p-4 z-20" style={{ paddingTop: "calc(var(--safe-top, 0px) + 12px)" }}>
@@ -1251,26 +1546,97 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
                 </span>
                 <span className="text-xs font-bold text-white">LIVE</span>
               </div>
-              <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/10">
+              <motion.div
+                animate={viewerPulse ? { scale: [1, 1.15, 1] } : { scale: 1 }}
+                transition={{ duration: 0.4 }}
+                className="flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/10"
+              >
                 <Eye className="w-3 h-3 text-white/80" />
                 <span className="text-xs font-medium text-white">{formatCountShort(viewers)}</span>
-              </div>
+              </motion.div>
               <div className="text-xs text-white/60 font-medium bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/10">
                 {formatDuration(elapsed)}
               </div>
+              <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/10">
+                <Heart className="w-3 h-3 text-vox-pink fill-vox-pink" />
+                <span className="text-xs font-medium text-white">{formatCountShort(likes)}</span>
+              </div>
             </div>
-            <button
-              onClick={() => setShowEndConfirm(true)}
-              className="flex items-center gap-1.5 bg-vox-danger/90 backdrop-blur-md rounded-full px-3 py-1.5 touch-feedback"
-            >
-              <Circle className="w-3 h-3 text-white fill-white" />
-              <span className="text-xs font-bold text-white">End</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowStats(!showStats)}
+                className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center touch-feedback border border-white/10"
+              >
+                <BarChart3 className={`w-4 h-4 ${showStats ? "text-vox-cyan" : "text-white"}`} />
+              </button>
+              <button
+                onClick={() => setShowEndConfirm(true)}
+                className="flex items-center gap-1.5 bg-vox-danger/90 backdrop-blur-md rounded-full px-3 py-1.5 touch-feedback"
+              >
+                <Circle className="w-3 h-3 text-white fill-white" />
+                <span className="text-xs font-bold text-white">End</span>
+              </button>
+            </div>
           </div>
         </div>
 
+        {/* Stream stats overlay */}
+        <AnimatePresence>
+          {showStats && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              className="absolute top-16 left-3 right-3 z-30 glass-strong rounded-2xl p-4 border border-white/10"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold tracking-widest text-vox-cyan">STREAM STATS</span>
+                <button onClick={() => setShowStats(false)} className="w-6 h-6 rounded-full glass flex items-center justify-center">
+                  <X className="w-3 h-3 text-vox-muted" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="glass rounded-xl p-3 text-center">
+                  <Eye className="w-5 h-5 text-vox-cyan mx-auto mb-1" />
+                  <p className="text-lg font-bold text-white">{viewers}</p>
+                  <p className="text-[10px] text-vox-muted">Current Viewers</p>
+                </div>
+                <div className="glass rounded-xl p-3 text-center">
+                  <TrendingUp className="w-5 h-5 text-vox-green mx-auto mb-1" />
+                  <p className="text-lg font-bold text-white">{peakViewers}</p>
+                  <p className="text-[10px] text-vox-muted">Peak Viewers</p>
+                </div>
+                <div className="glass rounded-xl p-3 text-center">
+                  <Heart className="w-5 h-5 text-vox-pink mx-auto mb-1" />
+                  <p className="text-lg font-bold text-white">{formatCountShort(likes)}</p>
+                  <p className="text-[10px] text-vox-muted">Total Likes</p>
+                </div>
+                <div className="glass rounded-xl p-3 text-center">
+                  <Gift className="w-5 h-5 text-vox-orange mx-auto mb-1" />
+                  <p className="text-lg font-bold text-white">{formatCountShort(totalGiftCoins)}</p>
+                  <p className="text-[10px] text-vox-muted">Gift Coins</p>
+                </div>
+              </div>
+              {giftsReceived.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-white/10">
+                  <p className="text-[10px] font-bold text-vox-muted mb-2">GIFTS RECEIVED</p>
+                  <div className="flex flex-wrap gap-2">
+                    {giftsReceived.map((g) => (
+                      <div key={g.icon} className="flex items-center gap-1 glass rounded-full px-2.5 py-1">
+                        <span className="text-base">{g.icon}</span>
+                        <span className="text-[10px] text-white font-medium">{g.name}</span>
+                        <span className="text-[10px] text-vox-orange font-bold">x{g.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Stream title */}
-        <div className="absolute top-16 left-3 right-3 z-20">
+        <div className="absolute top-16 left-3 right-3 z-20" style={{ display: showStats ? "none" : "block" }}>
           <div className="bg-black/40 backdrop-blur-md rounded-xl px-3 py-2 border border-white/10 max-w-[80%]">
             <p className="text-sm font-semibold text-white truncate">{stream.title}</p>
             <p className="text-xs text-vox-muted">{stream.category}</p>
@@ -1285,7 +1651,11 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
           {comments.slice(-20).map((c) => (
             <div key={c.id} className="flex items-start gap-2">
               <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-sm rounded-full px-2.5 py-1 max-w-[85%]">
-                <span className="text-xs font-bold text-vox-cyan shrink-0">{c.user}:</span>
+                {c.isGift ? (
+                  <span className="text-lg">{c.giftIcon}</span>
+                ) : (
+                  <span className="text-xs font-bold text-vox-cyan shrink-0">{c.user}:</span>
+                )}
                 <span className="text-xs text-white break-words">{c.text}</span>
               </div>
             </div>
@@ -1301,6 +1671,12 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
             placeholder="Say something..."
             className="flex-1 bg-black/40 backdrop-blur-md text-white text-sm rounded-full px-4 py-2.5 outline-none border border-white/10 placeholder:text-white/40"
           />
+          <button
+            onClick={toggleBeautyFilter}
+            className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center touch-feedback border ${beautyFilter ? "bg-vox-pink/40 border-vox-pink" : "bg-black/40 border-white/10"}`}
+          >
+            <Smile className={`w-4 h-4 ${beautyFilter ? "text-vox-pink" : "text-white"}`} />
+          </button>
           <button onClick={toggleCamera} className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center touch-feedback border border-white/10">
             {cameraOn ? <Video className="w-4 h-4 text-white" /> : <VideoOff className="w-4 h-4 text-vox-danger" />}
           </button>
@@ -1344,6 +1720,78 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Stream summary */}
+      <AnimatePresence>
+        {showStreamSummary && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[95] bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.85, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.85, y: 30 }}
+              className="glass-strong rounded-3xl w-full max-w-sm p-6 space-y-5"
+            >
+              <div className="text-center">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
+                  className="w-16 h-16 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink flex items-center justify-center mx-auto mb-3"
+                >
+                  <Trophy className="w-8 h-8 text-white" />
+                </motion.div>
+                <h3 className="text-xl font-bold text-white">Stream Ended</h3>
+                <p className="text-sm text-vox-muted mt-1">Great stream! Here&rsquo;s your recap.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="glass rounded-2xl p-4 text-center">
+                  <p className="text-2xl font-bold text-white">{formatDuration(elapsed)}</p>
+                  <p className="text-[10px] text-vox-muted mt-1">Duration</p>
+                </div>
+                <div className="glass rounded-2xl p-4 text-center">
+                  <p className="text-2xl font-bold text-vox-cyan">{peakViewers}</p>
+                  <p className="text-[10px] text-vox-muted mt-1">Peak Viewers</p>
+                </div>
+                <div className="glass rounded-2xl p-4 text-center">
+                  <p className="text-2xl font-bold text-vox-pink">{formatCountShort(likes)}</p>
+                  <p className="text-[10px] text-vox-muted mt-1">Total Likes</p>
+                </div>
+                <div className="glass rounded-2xl p-4 text-center">
+                  <p className="text-2xl font-bold text-vox-orange">{formatCountShort(totalGiftCoins)}</p>
+                  <p className="text-[10px] text-vox-muted mt-1">Gift Coins</p>
+                </div>
+              </div>
+
+              {giftsReceived.length > 0 && (
+                <div className="glass rounded-2xl p-3">
+                  <p className="text-[10px] font-bold text-vox-muted mb-2">GIFTS RECEIVED</p>
+                  <div className="flex flex-wrap gap-2">
+                    {giftsReceived.map((g) => (
+                      <div key={g.icon} className="flex items-center gap-1 bg-white/[0.06] rounded-full px-2.5 py-1">
+                        <span className="text-base">{g.icon}</span>
+                        <span className="text-[10px] text-white font-medium">{g.name} x{g.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleFinishSummary}
+                className="w-full bg-gradient-to-r from-vox-purple to-vox-pink rounded-2xl py-3.5 text-sm font-bold text-white touch-feedback"
+              >
+                Done
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -1361,6 +1809,7 @@ export default function LivePage() {
   const [activeStream, setActiveStream] = useState<LiveStream | null>(null);
   const [hostStream, setHostStream] = useState<LiveStream | null>(null);
   const [hostMediaStream, setHostMediaStream] = useState<MediaStream | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (!hydrated) return;
@@ -1426,6 +1875,14 @@ export default function LivePage() {
   const filteredStreams = activeCategory === "All"
     ? streams
     : streams.filter((s) => s.category === activeCategory);
+  const searchedStreams = searchQuery.trim()
+    ? filteredStreams.filter((s) =>
+        s.hostName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.category.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : filteredStreams;
+  const trendingStreamers = [...streams].sort((a, b) => b.viewers - a.viewers).slice(0, 5);
 
   if (!hydrated || !currentUser) {
     return (
@@ -1494,6 +1951,77 @@ export default function LivePage() {
           </div>
         </motion.div>
       </div>
+
+      {/* ═══════ SEARCH BAR ═══════ */}
+      <div className="px-4 pt-4 max-w-3xl mx-auto w-full">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-vox-muted" />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search streams, hosts, categories..."
+            className="w-full glass rounded-full pl-11 pr-4 py-2.5 text-sm text-white outline-none border border-white/10 placeholder:text-vox-muted focus:border-vox-purple/40 transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full glass flex items-center justify-center"
+            >
+              <X className="w-3 h-3 text-vox-muted" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ═══════ TRENDING STREAMERS ═══════ */}
+      {trendingStreamers.length > 0 && !searchQuery && (
+        <div className="px-4 pt-4 max-w-3xl mx-auto w-full">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-white flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4 text-vox-green" /> Trending Streamers
+            </h2>
+          </div>
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-2">
+            {trendingStreamers.map((streamer, idx) => (
+              <motion.button
+                key={streamer.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                onClick={() => setActiveStream(streamer)}
+                className="shrink-0 flex flex-col items-center gap-1.5 touch-feedback"
+              >
+                <div className="relative">
+                  {streamer.hostAvatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={streamer.hostAvatar} alt={streamer.hostName} className="w-16 h-16 rounded-full object-cover ring-2 ring-vox-danger/50" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink flex items-center justify-center ring-2 ring-vox-danger/50">
+                      <Radio className="w-7 h-7 text-white" />
+                    </div>
+                  )}
+                  <div className="absolute -bottom-1 -right-1 flex items-center gap-0.5 bg-vox-danger rounded-full px-1.5 py-0.5 border-2 border-vox-bg">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+                    </span>
+                  </div>
+                  {idx < 3 && (
+                    <div className={`absolute -top-1 -left-1 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-vox-bg ${
+                      idx === 0 ? "bg-vox-orange" : idx === 1 ? "bg-vox-purple" : "bg-vox-pink"
+                    }`}>
+                      {idx + 1}
+                    </div>
+                  )}
+                </div>
+                <span className="text-[10px] font-medium text-white max-w-[64px] truncate">{streamer.hostName}</span>
+                <span className="text-[9px] text-vox-muted flex items-center gap-0.5">
+                  <Eye className="w-2.5 h-2.5" /> {formatCountShort(streamer.viewers)}
+                </span>
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ═══════ FEATURED LIVE ═══════ */}
       {featuredStream && (
@@ -1588,21 +2116,23 @@ export default function LivePage() {
           {streams.length > 0 && <span className="text-xs text-vox-muted">{streams.length} streams</span>}
         </div>
 
-        {filteredStreams.length === 0 ? (
-          <div className="glass rounded-3xl p-8 text-center">
-            <Radio className="w-12 h-12 text-vox-muted mx-auto mb-3" />
-            <p className="text-white font-semibold">No live streams right now</p>
-            <p className="text-vox-muted text-sm mt-1 mb-4">Be the first to go live!</p>
-            <button
-              onClick={() => setShowGoLiveModal(true)}
-              className="bg-gradient-to-r from-vox-danger to-vox-pink rounded-full px-5 py-2 text-sm font-bold text-white touch-feedback"
-            >
-              Go Live
-            </button>
-          </div>
-        ) : (
+          {searchedStreams.length === 0 ? (
+            <div className="glass rounded-3xl p-8 text-center">
+              <Search className="w-12 h-12 text-vox-muted mx-auto mb-3" />
+              <p className="text-white font-semibold">{searchQuery ? "No streams found" : "No live streams right now"}</p>
+              <p className="text-vox-muted text-sm mt-1 mb-4">{searchQuery ? "Try a different search" : "Be the first to go live!"}</p>
+              {!searchQuery && (
+                <button
+                  onClick={() => setShowGoLiveModal(true)}
+                  className="bg-gradient-to-r from-vox-danger to-vox-pink rounded-full px-5 py-2 text-sm font-bold text-white touch-feedback"
+                >
+                  Go Live
+                </button>
+              )}
+            </div>
+          ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-            {filteredStreams.map((stream) => (
+            {searchedStreams.map((stream) => (
               <motion.button
                 key={stream.id}
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -1644,7 +2174,7 @@ export default function LivePage() {
               </motion.button>
             ))}
           </div>
-        )}
+          )}
       </div>
 
       {/* ═══════ LIVE SHOPPING ═══════ */}
