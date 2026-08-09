@@ -2,7 +2,7 @@
 // Sign up at https://cloudinary.com and get your cloud name + create an unsigned upload preset
 // Dashboard: Settings > Upload > Upload presets > Add unsigned preset
 
-export const CLOUDINARY_CLOUD_NAME: string = "dza1f6h1k";
+export const CLOUDINARY_CLOUD_NAME: string = "ugigwumr";
 export const CLOUDINARY_UPLOAD_PRESET: string = "vox_uploads";
 
 /** Upload a file to Cloudinary and return its secure URL */
