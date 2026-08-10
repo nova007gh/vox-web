@@ -135,6 +135,10 @@ function FeedVideoPlayer({ post, isPlaying, isMuted }: { post: Post; isPlaying: 
         loop
         muted={isMuted}
         playsInline
+        autoPlay
+        preload="auto"
+        onLoadedMetadata={() => { if (videoRef.current && isPlaying) videoRef.current.play().catch(() => {}); }}
+        onCanPlay={() => { if (videoRef.current && isPlaying) videoRef.current.play().catch(() => {}); }}
         className="absolute inset-0 w-full h-full object-cover"
       />
     );
