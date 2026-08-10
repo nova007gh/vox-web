@@ -746,8 +746,39 @@ export function subscribeToConversations(
     return () => { unsub1(); unsub2(); };
   }
 
-  // Fallback: no conversations in localStorage mode
-  callback([]);
+  // Fallback: scan localStorage for all chat partners
+  const chatPartners = new Set<string>();
+  // Scan all voxel_chat_* keys to find conversations
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith("voxel_chat_")) {
+      const chatId = key.replace("voxel_chat_", "");
+      const parts = chatId.split("_");
+      if (parts.length >= 2) {
+        // chatId is sorted usernames joined by _
+        const users = chatId.split("_");
+        for (const u of users) {
+          if (u !== username) chatPartners.add(u);
+        }
+      }
+    }
+  }
+  const result: { username: string; lastMessage: string; lastMessageTime: number; unread: number }[] = [];
+  for (const partner of Array.from(chatPartners)) {
+    const chatId = getChatId(username, partner);
+    const msgs: ChatMessage[] = JSON.parse(localStorage.getItem(`voxel_chat_${chatId}`) || "[]");
+    if (msgs.length === 0) continue;
+    const lastMsg = msgs[msgs.length - 1];
+    const unread = msgs.filter(m => m.receiverUsername === username && !m.read).length;
+    result.push({
+      username: partner,
+      lastMessage: lastMsg.type === "image" ? "📷 Photo" : lastMsg.content,
+      lastMessageTime: lastMsg.createdAt,
+      unread,
+    });
+  }
+  result.sort((a, b) => b.lastMessageTime - a.lastMessageTime);
+  callback(result);
   return () => {};
 }
 

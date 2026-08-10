@@ -94,230 +94,28 @@ interface Message {
 
 /* ───────────────────────────── DATA ────────────────────────────── */
 
-const initialChats: Chat[] = [
-  {
-    id: 1,
-    name: "JUST WEAR WIGS",
-    handle: "@just_wearwigs",
-    username: "just_wearwigs",
-    lastMessage: "Your wig order is ready for pickup! 💇‍♀️",
-    time: "2m",
-    unread: 2,
-    online: true,
-    verified: true,
-    seller: true,
-    avatar: "from-purple-500 to-pink-500",
-    avatarUrl: "/profiles/justwearwigs/avatar.jpeg",
-    role: "Seller",
-    followers: "2,096",
-    likes: "48.6K",
-  },
-  {
-    id: 2,
-    name: "Glow By Nana",
-    handle: "@glowbynana",
-    username: "glowbynana",
-    lastMessage: "I can fit you in tomorrow at 2pm ✨",
-    time: "15m",
-    unread: 1,
-    online: true,
-    verified: true,
-    seller: true,
-    avatar: "from-cyan-400 to-blue-500",
-    avatarUrl: "https://images.unsplash.com/photo-1763328728510-064ea03a1f8a?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces",
-    role: "Seller",
-    followers: "1.2M",
-    likes: "890K",
-  },
-  {
-    id: 3,
-    name: "Berry Beauty",
-    handle: "@berrybeauty",
-    username: "berrybeauty",
-    lastMessage: "The frontal ponytail tutorial is up! 🔥",
-    time: "1h",
-    unread: 0,
-    online: true,
-    verified: true,
-    seller: true,
-    avatar: "from-green-400 to-emerald-500",
-    avatarUrl: "https://images.unsplash.com/photo-1761661769337-1efb17d08a91?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces",
-    role: "Creator",
-    followers: "890K",
-    likes: "12.1M",
-  },
-  {
-    id: 4,
-    name: "Hair By Maame",
-    handle: "@hairbymaame",
-    username: "hairbymaame",
-    lastMessage: "Sent you a gift 🎁",
-    time: "3h",
-    unread: 0,
-    online: false,
-    verified: false,
-    seller: true,
-    avatar: "from-pink-400 to-rose-500",
-    avatarUrl: "https://images.unsplash.com/photo-1745975980824-bc88bd400c78?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces",
-    role: "Seller",
-    followers: "650K",
-    likes: "8.4M",
-  },
-  {
-    id: 5,
-    name: "Wigs By Akua",
-    handle: "@wigsbyakua",
-    username: "wigsbyakua",
-    lastMessage: "Your lace frontal order has shipped! 📦",
-    time: "5h",
-    unread: 0,
-    online: false,
-    verified: false,
-    seller: true,
-    avatar: "from-orange-400 to-amber-500",
-    avatarUrl: "https://images.unsplash.com/photo-1650649016849-00938690600c?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces",
-    role: "Seller",
-    followers: "420K",
-    likes: "5.8M",
-  },
-  {
-    id: 6,
-    name: "VOXel Beauty Hub",
-    handle: "@voxelbeauty",
-    lastMessage: "Flash sale on hair extensions! 50% off 🔥",
-    time: "Yesterday",
-    unread: 0,
-    online: false,
-    verified: true,
-    seller: false,
-    avatar: "from-violet-500 to-purple-600",
-    avatarUrl: "https://images.unsplash.com/photo-1770445612539-1a49772a1c3f?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces",
-    role: "System",
-    followers: "5.2M",
-    likes: "32M",
-    isGroup: true,
-  },
-  {
-    id: 7,
-    name: "Afro Queen",
-    handle: "@afroqueen",
-    username: "afroqueen",
-    lastMessage: "Sent a voice message about natural hair care",
-    time: "Yesterday",
-    unread: 0,
-    online: false,
-    verified: true,
-    seller: false,
-    avatar: "from-teal-400 to-cyan-500",
-    avatarUrl: "https://images.unsplash.com/photo-1770445612539-1a49772a1c3f?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces",
-    role: "Creator",
-    followers: "2.1M",
-    likes: "18.4M",
-    isVoice: true,
-  },
-  {
-    id: 8,
-    name: "Slayed By Esi",
-    handle: "@slayedbyesi",
-    username: "slayedbyesi",
-    lastMessage: "Sent a photo of the wig install 💇‍♀️",
-    time: "2 days ago",
-    unread: 0,
-    online: false,
-    verified: false,
-    seller: true,
-    avatar: "from-yellow-400 to-orange-500",
-    avatarUrl: "https://images.unsplash.com/photo-1765607476283-ca2d8201ddd4?fm=jpg&q=60&w=200&h=200&auto=format&fit=crop&crop=faces",
-    role: "Seller",
-    followers: "340K",
-    likes: "4.2M",
-    isPhoto: true,
-  },
-  {
-    id: 9,
-    name: "SNY Obeng",
-    handle: "@snyobeng",
-    username: "snyobeng",
-    lastMessage: "Check out my latest YouTube video! 🎬",
-    time: "3 days ago",
-    unread: 0,
-    online: false,
-    verified: true,
-    seller: false,
-    avatar: "from-indigo-500 to-purple-600",
-    avatarUrl: "/profiles/snyobeng/123121.jpeg",
-    role: "Creator",
-    followers: "892",
-    likes: "12.4K",
-  },
-];
+function buildChatsFromAccounts(currentUsername: string): Chat[] {
+  return accounts
+    .filter((a) => a.username !== currentUsername)
+    .map((a, i) => ({
+      id: i + 1,
+      name: a.name,
+      handle: `@${a.username}`,
+      username: a.username,
+      lastMessage: "",
+      time: "",
+      unread: 0,
+      online: false,
+      verified: a.verified,
+      seller: a.isSeller,
+      avatar: "from-vox-purple to-vox-pink",
+      avatarUrl: a.avatar,
+      role: a.isSeller ? "Seller" : "Creator",
+      followers: a.followers,
+      likes: "0",
+    }));
+}
 
-const conversationMessages: Message[] = [
-  {
-    id: 1,
-    sender: "them",
-    type: "text",
-    content: "Hey! Your ready-to-wear wig order is ready for pickup 💇‍♀️",
-    time: "2:15 PM",
-    read: true,
-  },
-  {
-    id: 2,
-    sender: "me",
-    type: "text",
-    content: "Amazing! Can I pick it up tomorrow?",
-    time: "2:16 PM",
-    read: true,
-  },
-  {
-    id: 3,
-    sender: "them",
-    type: "text",
-    content: "Yes! We're open 9am-6pm. The body wave came out gorgeous ✨",
-    time: "2:17 PM",
-    read: true,
-  },
-  {
-    id: 4,
-    sender: "them",
-    type: "image",
-    content: "wig_photo.jpg",
-    time: "2:18 PM",
-    read: true,
-  },
-  {
-    id: 5,
-    sender: "me",
-    type: "text",
-    content: "Omg that's beautiful! I'll definitely be there tomorrow",
-    time: "2:20 PM",
-    read: true,
-  },
-  {
-    id: 6,
-    sender: "them",
-    type: "voice",
-    content: "0:34",
-    time: "2:21 PM",
-    read: true,
-  },
-  {
-    id: 7,
-    sender: "me",
-    type: "gift",
-    content: "Sent a Rose gift (100 coins)",
-    time: "2:22 PM",
-    read: true,
-  },
-  {
-    id: 8,
-    sender: "them",
-    type: "text",
-    content: "Thank you so much! See you tomorrow 💕",
-    time: "2:23 PM",
-    read: true,
-  },
-];
 
 const tabFilters = ["All", "Unread", "Groups", "Sellers"] as const;
 
@@ -369,16 +167,16 @@ const mediaGradients = [
 export default function MessagesPage() {
   const router = useRouter();
   const { currentUser } = useAuth();
-  const [chatsList, setChatsList] = useState<Chat[]>(initialChats);
+  const [chatsList, setChatsList] = useState<Chat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<number>(1);
-  const [selectedChatUsername, setSelectedChatUsername] = useState<string>("just_wearwigs");
+  const [selectedChatUsername, setSelectedChatUsername] = useState<string>("");
   const [messageInput, setMessageInput] = useState("");
   const [activeTab, setActiveTab] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [showRightPanel, setShowRightPanel] = useState(true);
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [playingVoice, setPlayingVoice] = useState<number | null>(null);
-  const [messages, setMessages] = useState<Message[]>(conversationMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [realtimeMessages, setRealtimeMessages] = useState<ChatMessage[]>([]);
 
   // Get the active chat - try by ID first, then by username, then fallback to first
@@ -389,6 +187,12 @@ export default function MessagesPage() {
 
   // Track whether we've received any real-time messages for this chat
   const [hasRealtimeData, setHasRealtimeData] = useState(false);
+
+  // Build chat list from real accounts on mount
+  useEffect(() => {
+    if (!currentUser) return;
+    setChatsList(buildChatsFromAccounts(currentUser.username));
+  }, [currentUser]);
 
   // Open a specific chat from profile "Message" button
   useEffect(() => {
@@ -469,7 +273,7 @@ export default function MessagesPage() {
       const mapped: Message[] = realtimeMessages.map((m) => ({
         id: Date.now() + Math.random(),
         sender: m.senderUsername === currentUser?.username ? "me" : "them",
-        type: m.type === "image" ? "image" : "text",
+        type: m.type === "image" ? "image" : m.type === "gift" ? "gift" : "text",
         content: m.content,
         time: new Date(m.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
         read: m.read,
@@ -526,7 +330,7 @@ export default function MessagesPage() {
     }
 
     // Keep seed chats that don't have real conversations
-    for (const seedChat of initialChats) {
+    for (const seedChat of buildChatsFromAccounts(currentUser.username)) {
       if (!realConvMap.has(seedChat.username || "")) {
         seedChats.push(seedChat);
       }
@@ -739,20 +543,35 @@ export default function MessagesPage() {
     }
     if (!activeChatUsername) return;
 
-    deductCoins(currentUser.username, gift.cost).then((res) => {
+    deductCoins(currentUser.username, gift.cost).then(async (res) => {
       if (res.success && res.wallet) {
         setCoinBalance(res.wallet.coinBalance);
+        const time = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
         const newMsg: Message = {
-          id: messages.length + 1,
+          id: Date.now(),
           sender: "me",
           type: "gift",
           content: `Sent a ${gift.name} (${gift.cost} coins) ${gift.emoji}`,
-          time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
+          time,
           read: false,
         };
-        setMessages([...messages, newMsg]);
+        setMessages((prev) => [...prev, newMsg]);
         setShowGiftPanel(false);
         showToast(`${gift.emoji} ${gift.name} sent!`);
+
+        // Persist gift message to Firestore/localStorage
+        try {
+          await sendMessage({
+            senderUsername: currentUser.username,
+            senderName: currentUser.name,
+            senderAvatar: currentUser.avatar,
+            receiverUsername: activeChatUsername,
+            content: `Sent a ${gift.name} (${gift.cost} coins) ${gift.emoji}`,
+            type: "gift",
+          });
+        } catch (err) {
+          console.error("Gift message send error:", err);
+        }
 
         // Credit recipient with 70% of gift value
         earnFromStream(activeChatUsername, Math.floor(gift.cost * 0.7), "gift");
