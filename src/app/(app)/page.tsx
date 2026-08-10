@@ -279,6 +279,7 @@ export default function HomeFeed() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
   const [direction, setDirection] = useState(0);
+  const [swipeAxis, setSwipeAxis] = useState<"y" | "x">("y");
   const containerRef = useRef<HTMLDivElement>(null);
   const isAnimating = useRef(false);
 
@@ -348,15 +349,17 @@ export default function HomeFeed() {
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (showGiftModal || showReportModal || showCommentModal || showMoreMenu) return;
-      if (e.key === "ArrowDown") { e.preventDefault(); goNext(); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); goPrev(); }
+      if (e.key === "ArrowDown") { e.preventDefault(); setSwipeAxis("y"); goNext(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setSwipeAxis("y"); goPrev(); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); setSwipeAxis("x"); goNext(); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); setSwipeAxis("x"); goPrev(); }
       else if (e.key === " ") { e.preventDefault(); setIsPlaying((p) => !p); }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [goNext, goPrev, showGiftModal, showReportModal, showCommentModal, showMoreMenu]);
 
-  /* ── Wheel ── */
+  /* ── Wheel (trackpad / mouse wheel) ── */
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -365,8 +368,16 @@ export default function HomeFeed() {
       e.preventDefault();
       if (cooldown) return;
       cooldown = true;
-      if (e.deltaY > 30) goNext();
-      else if (e.deltaY < -30) goPrev();
+      // Determine dominant axis
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        setSwipeAxis("x");
+        if (e.deltaX > 30) goPrev();
+        else if (e.deltaX < -30) goNext();
+      } else {
+        setSwipeAxis("y");
+        if (e.deltaY > 30) goNext();
+        else if (e.deltaY < -30) goPrev();
+      }
       setTimeout(() => {
         cooldown = false;
       }, 600);
@@ -375,10 +386,19 @@ export default function HomeFeed() {
     return () => el.removeEventListener("wheel", handleWheel);
   }, [goNext, goPrev]);
 
-  /* ── Swipe ── */
+  /* ── Swipe (touch / drag) ── */
   const handleDragEnd = (_: unknown, info: PanInfo) => {
-    if (info.offset.y < -60) goNext();
-    else if (info.offset.y > 60) goPrev();
+    const { offset } = info;
+    // Determine dominant axis
+    if (Math.abs(offset.x) > Math.abs(offset.y)) {
+      // Horizontal swipe (Instagram-style)
+      if (offset.x < -60) goNext();
+      else if (offset.x > 60) goPrev();
+    } else {
+      // Vertical swipe (TikTok-style)
+      if (offset.y < -60) goNext();
+      else if (offset.y > 60) goPrev();
+    }
   };
 
   /* ── Clamp index ── */
@@ -476,11 +496,17 @@ export default function HomeFeed() {
     }
   };
 
-  /* ── Slide animation variants ── */
+  /* ── Slide animation variants (dynamic based on swipe axis) ── */
   const slideVariants = {
-    enter: (dir: number) => ({ y: dir > 0 ? "100%" : "-100%", opacity: 0.5 }),
-    center: { y: 0, opacity: 1 },
-    exit: (dir: number) => ({ y: dir > 0 ? "-100%" : "100%", opacity: 0.5 }),
+    enter: (dir: number) =>
+      swipeAxis === "x"
+        ? { x: dir > 0 ? "100%" : "-100%", opacity: 0.5 }
+        : { y: dir > 0 ? "100%" : "-100%", opacity: 0.5 },
+    center: { x: 0, y: 0, opacity: 1 },
+    exit: (dir: number) =>
+      swipeAxis === "x"
+        ? { x: dir > 0 ? "-100%" : "100%", opacity: 0.5 }
+        : { y: dir > 0 ? "-100%" : "100%", opacity: 0.5 },
   };
 
   /* ── Get account info for a post author ── */
@@ -582,9 +608,11 @@ export default function HomeFeed() {
                 animate="center"
                 exit="exit"
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                drag="y"
-                dragConstraints={{ top: 0, bottom: 0 }}
+                drag
+                dragDirectionLock
+                dragConstraints={{ top: 0, bottom: 0, left: 0, right: 0 }}
                 dragElastic={0.15}
+                onDirectionLock={(axis) => setSwipeAxis(axis)}
                 onDragEnd={handleDragEnd}
                 className="absolute inset-0 snap-start snap-always cursor-grab active:cursor-grabbing"
                 onClick={() => setIsPlaying((p) => !p)}
