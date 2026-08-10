@@ -345,3 +345,107 @@ img {
   -webkit-user-drag: none;
   user-drag: none;
 }
+
+/* ═══════════════ FUTURISTIC FEED EFFECTS ═══════════════ */
+
+/* Neon glow pulse for action buttons */
+@keyframes neon-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(124, 44, 255, 0.3), 0 0 16px rgba(124, 44, 255, 0.1); }
+  50% { box-shadow: 0 0 16px rgba(255, 44, 145, 0.5), 0 0 32px rgba(255, 44, 145, 0.2); }
+}
+.neon-pulse {
+  animation: neon-pulse 2.5s ease-in-out infinite;
+}
+
+/* Holographic shimmer for creator card */
+@keyframes holo-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.holo-border {
+  position: relative;
+}
+.holo-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(90deg, transparent, rgba(124, 44, 255, 0.6), rgba(34, 211, 238, 0.6), rgba(255, 44, 145, 0.6), transparent);
+  background-size: 200% 100%;
+  animation: holo-shimmer 3s linear infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Expanding ring pulse for like button */
+@keyframes ring-expand {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+.ring-pulse {
+  animation: ring-expand 0.6s ease-out;
+}
+
+/* Futuristic glass card for feed overlay */
+.glass-future {
+  background: linear-gradient(135deg, rgba(16, 20, 38, 0.6), rgba(5, 6, 11, 0.4));
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Glowing text for captions */
+.glow-text {
+  text-shadow: 0 0 20px rgba(124, 44, 255, 0.3), 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+/* Animated gradient bar for progress */
+@keyframes gradient-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.gradient-flow {
+  background-size: 200% 100%;
+  animation: gradient-flow 3s linear infinite;
+}
+
+/* Floating animation for gift icon */
+@keyframes float-gift {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+.float-gift {
+  animation: float-gift 2s ease-in-out infinite;
+}
+
+/* Spin slow for music disc */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spin-slow {
+  animation: spin-slow 4s linear infinite;
+}
+
+/* Futuristic bottom nav glow */
+@keyframes nav-glow {
+  0%, 100% { box-shadow: 0 -4px 24px rgba(124, 44, 255, 0.15), 0 -2px 8px rgba(0, 0, 0, 0.4); }
+  50% { box-shadow: 0 -4px 32px rgba(255, 44, 145, 0.2), 0 -2px 8px rgba(0, 0, 0, 0.4); }
+}
+.nav-glow {
+  animation: nav-glow 4s ease-in-out infinite;
+}
+
+/* Scanning line effect for futuristic feel */
+@keyframes scan-line {
+  0% { transform: translateY(-100%); opacity: 0; }
+  50% { opacity: 0.3; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+.scan-line {
+  animation: scan-line 4s ease-in-out infinite;
+}

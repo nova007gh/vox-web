@@ -552,7 +552,7 @@ export default function HomeFeed() {
         {/* ── TOP TAB BAR (Snapchat-style transparent with glowing dots) ── */}
         <div className="sticky top-0 z-40 bg-transparent" style={{ paddingTop: "var(--safe-top)" }}>
           <div className="flex items-center justify-center px-2 pt-2 pb-1.5">
-            <div className="flex items-center gap-0.5 sm:gap-1 bg-white/[0.03] backdrop-blur-md rounded-full px-1.5 py-1 border border-white/[0.08]">
+            <div className="flex items-center gap-0.5 sm:gap-1 glass-future rounded-full px-1.5 py-1 border border-white/[0.08] holo-border">
               {tabs.map((tab) => {
                 const active = activeTab === tab.key;
                 return (
@@ -641,7 +641,7 @@ export default function HomeFeed() {
                 {/* Mute button */}
                 <button
                   onClick={(e) => { e.stopPropagation(); setIsMuted((m) => !m); }}
-                  className="touch-feedback absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center text-white/80 border border-white/10"
+                  className="touch-feedback absolute top-3 right-3 z-10 w-9 h-9 rounded-full glass-future flex items-center justify-center text-white/80 border border-white/10 hover:text-white transition-colors"
                 >
                   {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                 </button>
@@ -656,7 +656,7 @@ export default function HomeFeed() {
                       transition={{ duration: 0.2 }}
                       className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none"
                     >
-                      <div className="w-20 h-20 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center">
+                      <div className="w-20 h-20 rounded-full glass-future flex items-center justify-center border border-white/20 neon-pulse">
                         <Play className="w-10 h-10 text-white ml-1" />
                       </div>
                     </motion.div>
@@ -664,42 +664,44 @@ export default function HomeFeed() {
                 </AnimatePresence>
 
                 {/* Bottom gradient overlay */}
-                <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+                <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none" />
 
-                {/* ── Bottom-left overlay (post info) ── */}
-                <div className="absolute bottom-4 left-3 right-16 sm:right-20 z-10 space-y-2 sm:space-y-2.5 lg:bottom-6 lg:left-6">
-                  {/* Creator info */}
+                {/* ── Bottom-left overlay (futuristic post info) ── */}
+                <div className="absolute bottom-4 left-3 right-16 sm:right-20 z-10 space-y-2.5 sm:space-y-3 lg:bottom-6 lg:left-6">
+                  {/* Creator info card */}
                   <div className="flex items-center gap-2.5 sm:gap-3">
                     <Link
                       href={`/profile/${currentPost.authorUsername}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="touch-feedback block"
+                      className="touch-feedback block relative"
                     >
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full p-[2px] cursor-pointer" style={{ background: "linear-gradient(135deg, #7C2CFF, #FF2C91, #FF8A34)" }}>
+                      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full p-[2px] cursor-pointer holo-border" style={{ borderRadius: "50%" }}>
                         {currentPost.authorAvatar && currentPost.authorAvatar.startsWith("http") ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={currentPost.authorAvatar} alt={currentPost.authorName} className="w-full h-full rounded-full object-cover" />
                         ) : (
-                          <div className="w-full h-full rounded-full bg-vox-bg flex items-center justify-center text-xs font-bold text-white">
+                          <div className="w-full h-full rounded-full bg-gradient-to-br from-vox-purple/40 to-vox-pink/40 flex items-center justify-center text-sm font-bold text-white">
                             {currentPost.authorName.charAt(0).toUpperCase()}
                           </div>
                         )}
                       </div>
+                      {/* Online indicator */}
+                      <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-vox-green border-2 border-vox-bg" />
                     </Link>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1">
                         <Link
                           href={`/profile/${currentPost.authorUsername}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="touch-feedback text-sm font-bold text-white truncate hover:underline"
+                          className="touch-feedback text-sm font-bold text-white truncate hover:underline glow-text"
                         >
                           {currentPost.authorName}
                         </Link>
                         {getAuthorAccount(currentPost.authorUsername)?.verified && (
-                          <BadgeCheck className="w-3.5 h-3.5 text-vox-cyan flex-shrink-0" />
+                          <BadgeCheck className="w-4 h-4 text-vox-cyan flex-shrink-0" />
                         )}
                       </div>
-                      <p className="text-[11px] text-vox-muted truncate">
+                      <p className="text-[11px] text-white/50 truncate">
                         @{currentPost.authorUsername} · {timeAgo(currentPost.createdAt)}
                       </p>
                     </div>
@@ -712,12 +714,13 @@ export default function HomeFeed() {
                           return s;
                         });
                       }}
-                      className={`touch-feedback ml-1 flex items-center gap-1 text-xs font-semibold rounded-full px-3 py-1 transition-all ${
-                        followedCreators.has(currentPost.authorUsername) ? "text-vox-muted border border-white/10" : "text-white"
+                      className={`touch-feedback ml-1 flex items-center gap-1 text-xs font-semibold rounded-full px-3.5 py-1.5 transition-all ${
+                        followedCreators.has(currentPost.authorUsername) ? "text-white/40 border border-white/10" : "text-white"
                       }`}
                       style={!followedCreators.has(currentPost.authorUsername) ? {
-                        background: "linear-gradient(135deg, rgba(124,44,255,0.3), rgba(255,44,145,0.3))",
-                        border: "1px solid rgba(255,255,255,0.2)",
+                        background: "linear-gradient(135deg, rgba(124,44,255,0.4), rgba(255,44,145,0.4))",
+                        border: "1px solid rgba(255,255,255,0.25)",
+                        boxShadow: "0 0 12px rgba(124,44,255,0.3)",
                       } : undefined}
                     >
                       {followedCreators.has(currentPost.authorUsername) ? "Following" : (<><Plus className="w-3 h-3" />Follow</>)}
@@ -726,9 +729,14 @@ export default function HomeFeed() {
 
                   {/* Caption */}
                   {currentPost.caption && (
-                    <p className="text-white/90 text-xs leading-relaxed break-words line-clamp-3">
+                    <motion.p
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 }}
+                      className="text-white text-sm leading-relaxed break-words line-clamp-3 glow-text"
+                    >
                       {currentPost.caption}
-                    </p>
+                    </motion.p>
                   )}
 
                   {/* Hashtags */}
@@ -739,6 +747,7 @@ export default function HomeFeed() {
                           key={i}
                           onClick={(e) => { e.stopPropagation(); router.push("/explore"); }}
                           className="text-vox-cyan text-xs font-medium cursor-pointer hover:underline"
+                          style={{ textShadow: "0 0 12px rgba(34,211,238,0.4)" }}
                         >
                           #{tag.replace(/^#/, "")}
                         </span>
@@ -746,9 +755,15 @@ export default function HomeFeed() {
                     </div>
                   )}
 
-                  {/* Sound / Music */}
-                  <div className="flex items-center gap-2 max-w-[200px] sm:max-w-[260px]">
-                    <Music className="w-3.5 h-3.5 text-white/70 flex-shrink-0 animate-spin" style={{ animationDuration: "3s" }} />
+                  {/* Sound / Music — futuristic disc */}
+                  <div className="flex items-center gap-2 max-w-[200px] sm:max-w-[260px] glass-future rounded-full px-2.5 py-1.5 border border-white/[0.06]">
+                    <div className="relative w-5 h-5 flex-shrink-0">
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-vox-purple via-vox-pink to-vox-orange" />
+                      <div className="absolute inset-1 rounded-full bg-vox-bg flex items-center justify-center">
+                        <div className="w-1 h-1 rounded-full bg-white/60" />
+                      </div>
+                      <Music className="absolute inset-0 m-auto w-2.5 h-2.5 text-white/80 spin-slow" />
+                    </div>
                     <div className="overflow-hidden flex-1">
                       <div className="animate-marquee whitespace-nowrap text-white/70 text-xs">
                         <span className="inline-block pr-8">Original Sound - {currentPost.authorName}</span>
@@ -758,14 +773,20 @@ export default function HomeFeed() {
                   </div>
                 </div>
 
-                {/* ── Right-side action buttons (Snapchat-style glassy circles) ── */}
+                {/* ── Right-side action buttons (futuristic neon glass) ── */}
                 <div className="absolute right-2 sm:right-3 bottom-20 sm:bottom-16 z-10 flex flex-col items-center gap-2.5 sm:gap-3 lg:right-4 lg:bottom-1/4">
                   {/* Like */}
                   <button
                     onClick={(e) => { e.stopPropagation(); handleLike(currentPost.id); }}
-                    className="touch-feedback flex flex-col items-center gap-0.5"
+                    className="touch-feedback flex flex-col items-center gap-0.5 relative"
                   >
-                    <motion.div whileTap={{ scale: 1.4 }} className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10">
+                    <motion.div
+                      whileTap={{ scale: 1.4 }}
+                      className={`w-12 h-12 sm:w-13 sm:h-13 rounded-full glass-future flex items-center justify-center border border-white/10 transition-all ${
+                        likedPosts.has(currentPost.id) ? "border-vox-pink/40" : ""
+                      }`}
+                      style={likedPosts.has(currentPost.id) ? { boxShadow: "0 0 16px rgba(255,44,145,0.4)" } : undefined}
+                    >
                       <Heart className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors ${likedPosts.has(currentPost.id) ? "fill-vox-pink text-vox-pink" : "text-white"}`} />
                     </motion.div>
                     <span className="text-[10px] font-semibold text-white drop-shadow-lg">{formatCount(currentPost.likes)}</span>
@@ -776,7 +797,7 @@ export default function HomeFeed() {
                     onClick={(e) => { e.stopPropagation(); setShowCommentModal(true); }}
                     className="touch-feedback flex flex-col items-center gap-0.5"
                   >
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10">
+                    <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-full glass-future flex items-center justify-center border border-white/10 hover:border-vox-cyan/30 transition-all">
                       <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <span className="text-[10px] font-semibold text-white drop-shadow-lg">{currentPost.comments?.length || 0}</span>
@@ -787,19 +808,19 @@ export default function HomeFeed() {
                     onClick={(e) => { e.stopPropagation(); handleShare(currentPost.id); }}
                     className="touch-feedback flex flex-col items-center gap-0.5"
                   >
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10">
+                    <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-full glass-future flex items-center justify-center border border-white/10 hover:border-vox-purple/30 transition-all">
                       <Share2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <span className="text-[10px] font-semibold text-white drop-shadow-lg">{formatCount(currentPost.shares)}</span>
                   </button>
 
-                  {/* Gift */}
+                  {/* Gift — special highlighted */}
                   <button
                     onClick={(e) => { e.stopPropagation(); setShowGiftModal(true); }}
                     className="touch-feedback flex flex-col items-center gap-0.5"
                   >
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10">
-                      <Gift className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-full glass-future flex items-center justify-center border border-vox-orange/20 neon-pulse">
+                      <Gift className="w-5 h-5 sm:w-6 sm:h-6 text-white float-gift" />
                     </div>
                     <span className="text-[10px] font-semibold text-white drop-shadow-lg">Gift</span>
                   </button>
@@ -809,7 +830,11 @@ export default function HomeFeed() {
                     onClick={(e) => { e.stopPropagation(); handleSave(currentPost.id); }}
                     className="touch-feedback flex flex-col items-center gap-0.5"
                   >
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10">
+                    <div className={`w-12 h-12 sm:w-13 sm:h-13 rounded-full glass-future flex items-center justify-center border border-white/10 transition-all ${
+                      savedPosts.has(currentPost.id) ? "border-vox-orange/40" : ""
+                    }`}
+                      style={savedPosts.has(currentPost.id) ? { boxShadow: "0 0 16px rgba(255,138,52,0.4)" } : undefined}
+                    >
                       <Bookmark className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors ${savedPosts.has(currentPost.id) ? "fill-vox-orange text-vox-orange" : "text-white"}`} />
                     </div>
                   </button>
@@ -818,7 +843,7 @@ export default function HomeFeed() {
                   <div className="relative">
                     <button
                       onClick={(e) => { e.stopPropagation(); setShowMoreMenu((s) => !s); }}
-                      className="touch-feedback w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10"
+                      className="touch-feedback w-12 h-12 sm:w-13 sm:h-13 rounded-full glass-future flex items-center justify-center border border-white/10"
                     >
                       <MoreHorizontal className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     </button>
@@ -847,20 +872,20 @@ export default function HomeFeed() {
                   </div>
                 </div>
 
-                {/* Views count */}
-                <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-black/30 backdrop-blur-md text-white text-xs font-medium px-2.5 py-1 rounded-full border border-white/10">
-                  <Eye className="w-3 h-3" />
+                {/* Views count — futuristic badge */}
+                <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 glass-future text-white text-xs font-medium px-3 py-1.5 rounded-full border border-white/10">
+                  <Eye className="w-3 h-3 text-vox-cyan" style={{ filter: "drop-shadow(0 0 4px rgba(34,211,238,0.6))" }} />
                   {formatCount(currentPost.views)}
                 </div>
               </motion.div>
             </AnimatePresence>
 
-            {/* ── Progress bar ── */}
-            <div className="absolute bottom-0 left-0 right-0 z-20 h-0.5 bg-white/20">
+            {/* ── Progress bar — animated gradient ── */}
+            <div className="absolute bottom-0 left-0 right-0 z-20 h-0.5 bg-white/10">
               <motion.div
                 key={currentPost.id}
-                className="h-full rounded-full"
-                style={{ background: "linear-gradient(90deg, #7C2CFF, #FF2C91, #FF8A34)" }}
+                className="h-full rounded-full gradient-flow"
+                style={{ background: "linear-gradient(90deg, #7C2CFF, #FF2C91, #FF8A34, #22D3EE, #7C2CFF)" }}
                 initial={{ width: "0%" }}
                 animate={{ width: isPlaying ? "100%" : undefined }}
                 transition={isPlaying ? { duration: 15, ease: "linear" } : { duration: 0 }}
@@ -974,19 +999,22 @@ export default function HomeFeed() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base font-bold text-white">Send a Gift</h3>
-                <button onClick={() => setShowGiftModal(false)} className="w-10 h-10 rounded-full glass flex items-center justify-center touch-feedback">
+                <h3 className="text-base font-bold text-white glow-text">Send a Gift</h3>
+                <button onClick={() => setShowGiftModal(false)} className="w-10 h-10 rounded-full glass-future flex items-center justify-center touch-feedback border border-white/10">
                   <X className="w-4 h-4 text-vox-muted" />
                 </button>
               </div>
-              <p className="text-xs text-vox-muted mb-4">Your balance: {coinBalance} 🪙</p>
+              <div className="flex items-center gap-2 mb-4 px-3 py-2 glass-future rounded-xl border border-white/[0.06]">
+                <span className="text-sm text-vox-muted">Balance</span>
+                <span className="text-sm font-bold text-vox-orange">{coinBalance} 🪙</span>
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 {giftOptions.map((g) => (
                   <button
                     key={g.name}
                     onClick={() => handleSendGift(g)}
                     disabled={coinBalance < g.cost}
-                    className="touch-feedback flex flex-col items-center gap-1 p-3 rounded-2xl glass hover:bg-white/[0.08] transition-colors disabled:opacity-40"
+                    className="touch-feedback flex flex-col items-center gap-1 p-3 rounded-2xl glass-future hover:border-vox-orange/30 transition-all disabled:opacity-40 border border-white/[0.06]"
                   >
                     <span className="text-2xl">{g.emoji}</span>
                     <span className="text-[10px] text-white font-medium">{g.name}</span>
@@ -994,7 +1022,7 @@ export default function HomeFeed() {
                   </button>
                 ))}
               </div>
-              <button onClick={() => router.push("/wallet")} className="w-full mt-4 glass rounded-xl py-2.5 text-xs text-vox-muted touch-feedback">
+              <button onClick={() => router.push("/wallet")} className="w-full mt-4 glass-future rounded-xl py-2.5 text-xs text-vox-muted touch-feedback border border-white/[0.06]">
                 Get more coins →
               </button>
             </motion.div>
