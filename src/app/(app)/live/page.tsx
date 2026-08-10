@@ -33,6 +33,10 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
+  getWallet,
+  sendGift,
+} from "@/lib/wallet-store";
+import {
   getActiveStreams,
   startLiveStream,
   endLiveStream,
@@ -515,6 +519,7 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
     ],
   });
   const [toast, setToast] = useState<string | null>(null);
+  const [coinBalance, setCoinBalance] = useState(0);
   const [products, setProducts] = useState<LiveProduct[]>([]);
   const [auctions, setAuctions] = useState<LiveAuction[]>([]);
   const [buyProduct, setBuyProduct] = useState<LiveProduct | null>(null);
@@ -604,6 +609,16 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
     }
   }, [comments]);
 
+  useEffect(() => {
+    if (!currentUser) return;
+    let active = true;
+    getWallet(currentUser.username).then((w) => {
+      if (!active) return;
+      setCoinBalance(w.coinBalance);
+    });
+    return () => { active = false; };
+  }, [currentUser]);
+
   const handleSendComment = () => {
     const text = commentText.trim();
     if (!text) return;
@@ -617,39 +632,53 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
   };
 
   const handleGift = (gift: typeof giftTiers[0]) => {
-    const id = ++giftIdRef.current;
-    setFloatingGifts((prev) => [...prev, { id, icon: gift.icon }]);
-    setTimeout(() => setFloatingGifts((prev) => prev.filter((g) => g.id !== id)), 3000);
-    setGiftBurst({ icon: gift.icon, name: gift.name, cost: gift.cost, nonce: Date.now() });
-    setTimeout(() => setGiftBurst((cur) => (cur && Date.now() - cur.nonce >= 2100 ? null : cur)), 2200);
-
-    // Gift combo logic
-    const now = Date.now();
-    const current = giftComboRef.current;
-    if (current && current.icon === gift.icon && now - current.nonce < 2000) {
-      const newCount = current.count + 1;
-      giftComboRef.current = { ...current, count: newCount, nonce: now };
-      setGiftCombo({ ...current, count: newCount, nonce: now });
-    } else {
-      giftComboRef.current = { icon: gift.icon, name: gift.name, count: 1, nonce: now };
-      setGiftCombo({ icon: gift.icon, name: gift.name, count: 1, nonce: now });
+    if (!currentUser) {
+      showToast("Sign in to send gifts");
+      return;
     }
-    if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
-    comboTimerRef.current = setTimeout(() => {
-      setGiftCombo(null);
-      giftComboRef.current = null;
-    }, 2200);
+    const tierIndex = giftTiers.findIndex((t) => t.name === gift.name);
+    if (tierIndex === -1) return;
 
-    setComments((prev) => [...prev, {
-      id: `gift_${Date.now()}`,
-      user: currentUser?.name || "You",
-      avatar: currentUser?.avatar,
-      text: `sent a ${gift.name}!`,
-      isGift: true,
-      giftIcon: gift.icon,
-    }]);
-    setShowGifts(false);
-    showToast(`${gift.icon} ${gift.name} sent!`);
+    sendGift(currentUser.username, stream.hostUsername, tierIndex).then((res) => {
+      if (res.success && res.senderWallet) {
+        setCoinBalance(res.senderWallet.coinBalance);
+
+        const id = ++giftIdRef.current;
+        setFloatingGifts((prev) => [...prev, { id, icon: gift.icon }]);
+        setTimeout(() => setFloatingGifts((prev) => prev.filter((g) => g.id !== id)), 3000);
+        setGiftBurst({ icon: gift.icon, name: gift.name, cost: gift.cost, nonce: Date.now() });
+        setTimeout(() => setGiftBurst((cur) => (cur && Date.now() - cur.nonce >= 2100 ? null : cur)), 2200);
+
+        const now = Date.now();
+        const current = giftComboRef.current;
+        if (current && current.icon === gift.icon && now - current.nonce < 2000) {
+          const newCount = current.count + 1;
+          giftComboRef.current = { ...current, count: newCount, nonce: now };
+          setGiftCombo({ ...current, count: newCount, nonce: now });
+        } else {
+          giftComboRef.current = { icon: gift.icon, name: gift.name, count: 1, nonce: now };
+          setGiftCombo({ icon: gift.icon, name: gift.name, count: 1, nonce: now });
+        }
+        if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
+        comboTimerRef.current = setTimeout(() => {
+          setGiftCombo(null);
+          giftComboRef.current = null;
+        }, 2200);
+
+        setComments((prev) => [...prev, {
+          id: `gift_${Date.now()}`,
+          user: currentUser?.name || "You",
+          avatar: currentUser?.avatar,
+          text: `sent a ${gift.name}!`,
+          isGift: true,
+          giftIcon: gift.icon,
+        }]);
+        setShowGifts(false);
+        showToast(`${gift.icon} ${gift.name} sent! -${gift.cost} coins`);
+      } else {
+        showToast(res.error || "Not enough coins");
+      }
+    });
   };
 
   const handleLike = () => {
@@ -1166,9 +1195,12 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-semibold text-white">Send a Gift</span>
-                <button onClick={() => setShowGifts(false)} className="w-6 h-6 rounded-full glass flex items-center justify-center">
-                  <X className="w-3 h-3 text-vox-muted" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-vox-orange font-medium">{coinBalance.toLocaleString()} coins</span>
+                  <button onClick={() => setShowGifts(false)} className="w-6 h-6 rounded-full glass flex items-center justify-center">
+                    <X className="w-3 h-3 text-vox-muted" />
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {giftTiers.map((g) => (
