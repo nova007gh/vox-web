@@ -41,6 +41,7 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { accounts } from "@/lib/accounts";
 import { addNotification } from "@/lib/content-store";
+import { getWallet, deductCoins, earnFromStream } from "@/lib/wallet-store";
 
 const trendingHashtags = [
   { tag: "afrobeats" },
@@ -294,7 +295,7 @@ export default function HomeFeed() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showCommentModal, setShowCommentModal] = useState(false);
-  const [coinBalance, setCoinBalance] = useState(500);
+  const [coinBalance, setCoinBalance] = useState(0);
   const [reportReason, setReportReason] = useState<string | null>(null);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [savedPosts, setSavedPosts] = useState<Set<string>>(new Set());
@@ -321,6 +322,16 @@ export default function HomeFeed() {
       setSavedPosts(new Set(posts.filter(p => p.savedByMe).map(p => p.id)));
     }
   }, [posts]);
+
+  // Load real coin balance
+  useEffect(() => {
+    if (!currentUser) return;
+    let active = true;
+    getWallet(currentUser.username).then((w) => {
+      if (active) setCoinBalance(w.coinBalance);
+    });
+    return () => { active = false; };
+  }, [currentUser]);
 
   const visiblePosts = posts;
   const safeIndex = Math.min(currentIndex, visiblePosts.length - 1);
@@ -479,13 +490,19 @@ export default function HomeFeed() {
   };
 
   const handleSendGift = (gift: { emoji: string; name: string; cost: number }) => {
-    if (coinBalance >= gift.cost) {
-      setCoinBalance((prev) => prev - gift.cost);
-      showToast(`Sent ${gift.emoji} ${gift.name}!`);
-      setShowGiftModal(false);
-      // Send notification to post author
-      const post = visiblePosts[currentIndex];
-      if (post && currentUser) {
+    if (!currentUser) return;
+    const post = visiblePosts[currentIndex];
+    if (!post) return;
+
+    deductCoins(currentUser.username, gift.cost).then((res) => {
+      if (res.success && res.wallet) {
+        setCoinBalance(res.wallet.coinBalance);
+        showToast(`Sent ${gift.emoji} ${gift.name}!`);
+        setShowGiftModal(false);
+
+        // Credit creator 70% of gift value as fiat earnings
+        earnFromStream(post.authorUsername, Math.floor(gift.cost * 0.7), "gift");
+
         addNotification(post.authorUsername, {
           type: "gift",
           fromUsername: currentUser.username,
@@ -495,10 +512,10 @@ export default function HomeFeed() {
           detail: `${gift.emoji} ${gift.name}`,
           postId: post.id,
         });
+      } else {
+        showToast(res.error || "Not enough coins!");
       }
-    } else {
-      showToast("Not enough coins!");
-    }
+    });
   };
 
   /* ── Slide animation variants (dynamic based on swipe axis) ── */

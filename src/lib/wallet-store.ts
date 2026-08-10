@@ -459,3 +459,27 @@ export async function earnFromStream(
 
   return wallet;
 }
+
+export async function deductCoins(
+  username: string,
+  amount: number,
+): Promise<{ success: boolean; error?: string; wallet?: Wallet }> {
+  if (amount <= 0) return { success: false, error: "Invalid coin amount" };
+  const wallet = await getWallet(username);
+  if (wallet.coinBalance < amount) return { success: false, error: "Not enough coins" };
+
+  wallet.coinBalance -= amount;
+  await writeWallet(wallet);
+
+  await addTransaction(username, {
+    username,
+    label: `Gift sent — ${amount} VOX Coins`,
+    amount: -amount,
+    type: "debit",
+    time: new Date().toLocaleString("en-US"),
+    status: "Completed",
+    category: "Gift",
+  });
+
+  return { success: true, wallet };
+}
