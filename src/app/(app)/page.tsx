@@ -39,7 +39,7 @@ import {
   type Comment,
 } from "@/lib/firebase-store";
 import { useAuth } from "@/lib/auth-context";
-import { accounts } from "@/lib/accounts";
+import { getAccount } from "@/lib/accounts";
 import { addNotification } from "@/lib/content-store";
 import { getWallet, deductCoins, earnFromStream } from "@/lib/wallet-store";
 
@@ -532,7 +532,7 @@ export default function HomeFeed() {
   };
 
   /* ── Get account info for a post author ── */
-  const getAuthorAccount = (username: string) => accounts.find(a => a.username === username);
+  const getAuthorAccount = (username: string) => getAccount(username);
 
   /* ── Empty state when no posts ── */
   const renderEmptyState = () => (

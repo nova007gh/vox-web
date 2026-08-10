@@ -42,7 +42,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { sendMessage, subscribeToMessages, subscribeToConversations, markMessagesAsRead, subscribeToTyping, setTypingStatus, uploadFile, compressImageForFirestore, type ChatMessage } from "@/lib/firebase-store";
-import { getAccount, accounts } from "@/lib/accounts";
+import { getAccount } from "@/lib/accounts";
+import type { Account } from "@/lib/accounts";
 import { getWallet, deductCoins, earnFromStream } from "@/lib/wallet-store";
 
 /* ───────────────────────────── HELPERS ───────────────────────────── */
@@ -93,29 +94,6 @@ interface Message {
 }
 
 /* ───────────────────────────── DATA ────────────────────────────── */
-
-function buildChatsFromAccounts(currentUsername: string): Chat[] {
-  return accounts
-    .filter((a) => a.username !== currentUsername)
-    .map((a, i) => ({
-      id: i + 1,
-      name: a.name,
-      handle: `@${a.username}`,
-      username: a.username,
-      lastMessage: "",
-      time: "",
-      unread: 0,
-      online: false,
-      verified: a.verified,
-      seller: a.isSeller,
-      avatar: "from-vox-purple to-vox-pink",
-      avatarUrl: a.avatar,
-      role: a.isSeller ? "Seller" : "Creator",
-      followers: a.followers,
-      likes: "0",
-    }));
-}
-
 
 const tabFilters = ["All", "Unread", "Groups", "Sellers"] as const;
 
@@ -187,12 +165,6 @@ export default function MessagesPage() {
 
   // Track whether we've received any real-time messages for this chat
   const [hasRealtimeData, setHasRealtimeData] = useState(false);
-
-  // Build chat list from real accounts on mount
-  useEffect(() => {
-    if (!currentUser) return;
-    setChatsList(buildChatsFromAccounts(currentUser.username));
-  }, [currentUser]);
 
   // Open a specific chat from profile "Message" button
   useEffect(() => {
@@ -300,13 +272,9 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!currentUser || realConversations.length === 0) return;
 
-    // Build a map of real conversation usernames for quick lookup
-    const realConvMap = new Map(realConversations.map(c => [c.username, c]));
-
     // Get account info for real conversation users
     let nextId = 100;
     const realChats: Chat[] = [];
-    const seedChats: Chat[] = [];
 
     for (const conv of realConversations) {
       const account = getAccount(conv.username);
@@ -329,15 +297,8 @@ export default function MessagesPage() {
       });
     }
 
-    // Keep seed chats that don't have real conversations
-    for (const seedChat of buildChatsFromAccounts(currentUser.username)) {
-      if (!realConvMap.has(seedChat.username || "")) {
-        seedChats.push(seedChat);
-      }
-    }
-
-    // Real conversations first (already sorted by time), then seed chats
-    setChatsList([...realChats, ...seedChats]);
+    // Real conversations first (already sorted by time)
+    setChatsList([...realChats]);
   }, [realConversations, currentUser]);
 
   const [callState, setCallState] = useState<{ active: boolean; type: "voice" | "video"; duration: number }>({ active: false, type: "voice", duration: 0 });
@@ -1517,10 +1478,16 @@ export default function MessagesPage() {
                 className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-vox-purple"
               />
               <div className="space-y-1 max-h-60 overflow-y-auto scrollbar-hide">
-                {accounts
-                  .filter(a => a.username !== currentUser?.username)
-                  .filter(a => a.name.toLowerCase().includes(newMessageSearch.toLowerCase()) || a.username.toLowerCase().includes(newMessageSearch.toLowerCase()))
-                  .map((account) => (
+                {(() => {
+                  let allUsers: Account[] = [];
+                  try {
+                    const raw = window.localStorage.getItem("voxel_users");
+                    if (raw) allUsers = JSON.parse(raw) as Account[];
+                  } catch {}
+                  return allUsers
+                    .filter(a => a.username !== currentUser?.username)
+                    .filter(a => a.name.toLowerCase().includes(newMessageSearch.toLowerCase()) || a.username.toLowerCase().includes(newMessageSearch.toLowerCase()))
+                    .map((account) => (
                   <button
                     key={account.username}
                     onClick={() => {
@@ -1563,7 +1530,8 @@ export default function MessagesPage() {
                       <p className="text-[11px] text-vox-muted">@{account.username}</p>
                     </div>
                   </button>
-                ))}
+                    ));
+                })()}
               </div>
             </motion.div>
           </motion.div>
