@@ -118,6 +118,7 @@ export default function ProfileView({ username }: ProfileViewProps) {
     );
     setFollowersCount(getFollowersCount(username));
     setFollowingCount(getFollowingCount(username));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username, currentUser]);
 
   /* ── Helpers ── */
@@ -291,6 +292,7 @@ export default function ProfileView({ username }: ProfileViewProps) {
 
       {/* ── Cover ── */}
       <div className="relative h-44 sm:h-56 overflow-hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={account.cover}
           alt={`${account.name} cover`}
@@ -305,6 +307,7 @@ export default function ProfileView({ username }: ProfileViewProps) {
         <div className="flex items-end justify-between mb-4">
           <div className="p-[3px] rounded-full bg-gradient-to-tr from-vox-purple via-vox-pink to-vox-cyan">
             <div className="p-[2px] rounded-full bg-vox-bg">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={account.avatar}
                 alt={account.name}
