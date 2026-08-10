@@ -141,6 +141,7 @@ function GoLiveModal({ onClose, onGoLive }: { onClose: () => void; onGoLive: (ti
       streamRef.current = mediaStream;
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        videoRef.current.play().catch(() => {});
       }
       setCameraReady(true);
       setCameraError(null);
@@ -165,7 +166,10 @@ function GoLiveModal({ onClose, onGoLive }: { onClose: () => void; onGoLive: (ti
       });
       if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = mediaStream;
-      if (videoRef.current) videoRef.current.srcObject = mediaStream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        videoRef.current.play().catch(() => {});
+      }
       setCameraPermission("granted");
       setCameraReady(true);
       setCameraError(null);
@@ -177,7 +181,8 @@ function GoLiveModal({ onClose, onGoLive }: { onClose: () => void; onGoLive: (ti
 
   const requestMicrophone = async () => {
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      audioStream.getTracks().forEach((t) => t.stop());
       setMicPermission("granted");
     } catch (err) {
       console.error("Microphone access denied:", err);
@@ -188,7 +193,7 @@ function GoLiveModal({ onClose, onGoLive }: { onClose: () => void; onGoLive: (ti
   const canContinue = cameraPermission === "granted" && micPermission === "granted";
 
   useEffect(() => {
-    if (step === "setup" && !streamRef.current) {
+    if (step === "setup") {
       startPreview();
     }
     return () => {
@@ -289,6 +294,8 @@ function GoLiveModal({ onClose, onGoLive }: { onClose: () => void; onGoLive: (ti
                   autoPlay
                   playsInline
                   muted
+                  onLoadedMetadata={() => { if (videoRef.current) videoRef.current.play().catch(() => {}); }}
+                  onCanPlay={() => { if (videoRef.current) videoRef.current.play().catch(() => {}); }}
                   className="absolute inset-0 w-full h-full object-cover"
                   style={{ transform: "scaleX(-1)" }}
                 />
@@ -1260,6 +1267,7 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
       streamRef.current = mediaStream;
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        videoRef.current.play().catch(() => {});
       }
       setError(null);
     } catch (err) {
@@ -1276,6 +1284,7 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
       if (initialStream) {
         if (videoRef.current) {
           videoRef.current.srcObject = initialStream;
+          videoRef.current.play().catch(() => {});
         }
         setCameraStarting(false);
       } else {
@@ -1290,6 +1299,13 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
       }
     };
   }, [initialStream, startCamera]);
+
+  // Ensure video plays whenever camera becomes ready (mobile autoplay fix)
+  useEffect(() => {
+    if (!cameraStarting && !error && videoRef.current) {
+      videoRef.current.play().catch(() => {});
+    }
+  }, [cameraStarting, error]);
 
   const toggleCamera = () => {
     if (streamRef.current) {
@@ -1475,6 +1491,8 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
               autoPlay
               playsInline
               muted
+              onLoadedMetadata={() => { if (videoRef.current) videoRef.current.play().catch(() => {}); }}
+              onCanPlay={() => { if (videoRef.current) videoRef.current.play().catch(() => {}); }}
               className="absolute inset-0 w-full h-full object-cover"
               style={{
                 transform: facingMode === "user" ? "scaleX(-1)" : "none",
