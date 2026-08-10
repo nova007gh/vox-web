@@ -237,7 +237,7 @@ export default function ExplorePage() {
   const isSearching = query.length > 0;
 
   return (
-    <div className="relative h-full overflow-y-auto overflow-x-hidden scrollbar-hide">
+    <div className="relative h-full overflow-y-auto overflow-x-hidden scrollbar-hide pb-16 lg:pb-0">
       {/* ═══════ STICKY SEARCH BAR ═══════ */}
       <div className="sticky top-0 z-30 px-3 sm:px-4 pb-3 glass-strong backdrop-blur-xl" style={{ paddingTop: "var(--safe-top)" }} ref={searchRef}>
         <div className="max-w-3xl mx-auto relative">

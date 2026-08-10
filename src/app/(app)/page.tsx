@@ -201,6 +201,7 @@ function CommentModal({ post, onClose, onUpdate }: { post: Post; onClose: () => 
       exit={{ opacity: 0 }}
       onClick={onClose}
       className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center"
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
       <motion.div
         initial={{ y: "100%" }}
@@ -208,7 +209,7 @@ function CommentModal({ post, onClose, onUpdate }: { post: Post; onClose: () => 
         exit={{ y: "100%" }}
         transition={{ type: "spring", stiffness: 400, damping: 35 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass-strong rounded-t-3xl sm:rounded-3xl p-5 w-full max-w-md max-h-[70vh] flex flex-col"
+        className="glass-strong rounded-t-3xl sm:rounded-3xl p-4 sm:p-5 w-full max-w-md max-h-[60vh] sm:max-h-[70vh] flex flex-col"
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-white">{comments.length} Comments</h3>
@@ -667,7 +668,7 @@ export default function HomeFeed() {
                 <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none" />
 
                 {/* ── Bottom-left overlay (futuristic post info) ── */}
-                <div className="absolute bottom-4 left-3 right-16 sm:right-20 z-10 space-y-2.5 sm:space-y-3 lg:bottom-6 lg:left-6">
+                <div className="absolute bottom-4 left-3 right-14 sm:right-20 z-10 space-y-2 sm:space-y-2.5 lg:bottom-6 lg:left-6">
                   {/* Creator info card */}
                   <div className="flex items-center gap-2.5 sm:gap-3">
                     <Link
@@ -774,7 +775,7 @@ export default function HomeFeed() {
                 </div>
 
                 {/* ── Right-side action buttons (futuristic neon glass) ── */}
-                <div className="absolute right-2 sm:right-3 bottom-20 sm:bottom-16 z-10 flex flex-col items-center gap-2.5 sm:gap-3 lg:right-4 lg:bottom-1/4">
+                <div className="absolute right-2 sm:right-3 bottom-24 sm:bottom-20 z-10 flex flex-col items-center gap-2 sm:gap-2.5 lg:right-4 lg:bottom-1/4">
                   {/* Like */}
                   <button
                     onClick={(e) => { e.stopPropagation(); handleLike(currentPost.id); }}
@@ -782,7 +783,7 @@ export default function HomeFeed() {
                   >
                     <motion.div
                       whileTap={{ scale: 1.4 }}
-                      className={`w-12 h-12 sm:w-13 sm:h-13 rounded-full glass-future flex items-center justify-center border border-white/10 transition-all ${
+                      className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full glass-future flex items-center justify-center border border-white/10 transition-all ${
                         likedPosts.has(currentPost.id) ? "border-vox-pink/40" : ""
                       }`}
                       style={likedPosts.has(currentPost.id) ? { boxShadow: "0 0 16px rgba(255,44,145,0.4)" } : undefined}
@@ -797,7 +798,7 @@ export default function HomeFeed() {
                     onClick={(e) => { e.stopPropagation(); setShowCommentModal(true); }}
                     className="touch-feedback flex flex-col items-center gap-0.5"
                   >
-                    <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-full glass-future flex items-center justify-center border border-white/10 hover:border-vox-cyan/30 transition-all">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full glass-future flex items-center justify-center border border-white/10 hover:border-vox-cyan/30 transition-all">
                       <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <span className="text-[10px] font-semibold text-white drop-shadow-lg">{currentPost.comments?.length || 0}</span>
@@ -808,7 +809,7 @@ export default function HomeFeed() {
                     onClick={(e) => { e.stopPropagation(); handleShare(currentPost.id); }}
                     className="touch-feedback flex flex-col items-center gap-0.5"
                   >
-                    <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-full glass-future flex items-center justify-center border border-white/10 hover:border-vox-purple/30 transition-all">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full glass-future flex items-center justify-center border border-white/10 hover:border-vox-purple/30 transition-all">
                       <Share2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <span className="text-[10px] font-semibold text-white drop-shadow-lg">{formatCount(currentPost.shares)}</span>
@@ -819,7 +820,7 @@ export default function HomeFeed() {
                     onClick={(e) => { e.stopPropagation(); setShowGiftModal(true); }}
                     className="touch-feedback flex flex-col items-center gap-0.5"
                   >
-                    <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-full glass-future flex items-center justify-center border border-vox-orange/20 neon-pulse">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full glass-future flex items-center justify-center border border-vox-orange/20 neon-pulse">
                       <Gift className="w-5 h-5 sm:w-6 sm:h-6 text-white float-gift" />
                     </div>
                     <span className="text-[10px] font-semibold text-white drop-shadow-lg">Gift</span>
@@ -830,7 +831,7 @@ export default function HomeFeed() {
                     onClick={(e) => { e.stopPropagation(); handleSave(currentPost.id); }}
                     className="touch-feedback flex flex-col items-center gap-0.5"
                   >
-                    <div className={`w-12 h-12 sm:w-13 sm:h-13 rounded-full glass-future flex items-center justify-center border border-white/10 transition-all ${
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full glass-future flex items-center justify-center border border-white/10 transition-all ${
                       savedPosts.has(currentPost.id) ? "border-vox-orange/40" : ""
                     }`}
                       style={savedPosts.has(currentPost.id) ? { boxShadow: "0 0 16px rgba(255,138,52,0.4)" } : undefined}
@@ -843,7 +844,7 @@ export default function HomeFeed() {
                   <div className="relative">
                     <button
                       onClick={(e) => { e.stopPropagation(); setShowMoreMenu((s) => !s); }}
-                      className="touch-feedback w-12 h-12 sm:w-13 sm:h-13 rounded-full glass-future flex items-center justify-center border border-white/10"
+                      className="touch-feedback w-10 h-10 sm:w-12 sm:h-12 rounded-full glass-future flex items-center justify-center border border-white/10"
                     >
                       <MoreHorizontal className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     </button>
@@ -988,6 +989,7 @@ export default function HomeFeed() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
             onClick={() => setShowGiftModal(false)}
           >
             <motion.div
@@ -1040,6 +1042,7 @@ export default function HomeFeed() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
             onClick={() => setShowReportModal(false)}
           >
             <motion.div

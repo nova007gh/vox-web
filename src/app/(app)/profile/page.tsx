@@ -343,7 +343,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="relative h-full overflow-y-auto overflow-x-hidden scrollbar-hide">
+    <div className="relative h-full overflow-y-auto overflow-x-hidden scrollbar-hide pb-16 lg:pb-0">
       {/* ═══════ COVER AREA ═══════ */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6 }} className="relative">
         <div className="h-36 sm:h-44 md:h-56 relative overflow-hidden">

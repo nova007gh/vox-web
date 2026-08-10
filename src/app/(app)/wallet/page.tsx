@@ -387,7 +387,7 @@ export default function WalletPage() {
   const visibleTransactions = showAllTx ? allTransactions : allTransactions.slice(0, 5);
 
   return (
-    <div className="h-full overflow-y-auto scrollbar-hide">
+    <div className="h-full overflow-y-auto scrollbar-hide pb-16 lg:pb-0">
       {/* ═══════ STICKY TOP BAR ═══════ */}
       <div
         className="sticky top-0 z-30 glass-strong backdrop-blur-xl"
