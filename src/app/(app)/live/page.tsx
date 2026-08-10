@@ -30,12 +30,15 @@ import {
   BarChart3,
   Trophy,
   User,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
   getWallet,
   sendGift,
 } from "@/lib/wallet-store";
+import { createPost, uploadFile } from "@/lib/firebase-store";
 import {
   getActiveStreams,
   startLiveStream,
@@ -1285,6 +1288,10 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showStreamSummary, setShowStreamSummary] = useState(false);
   const [cameraStarting, setCameraStarting] = useState(!initialStream);
+  const [isSavingStream, setIsSavingStream] = useState(false);
+  const [streamSaved, setStreamSaved] = useState(false);
+  const [recordingAvailable, setRecordingAvailable] = useState(false);
+  const [recordingBlobUrl, setRecordingBlobUrl] = useState<string | null>(null);
   const [beautyFilter, setBeautyFilter] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [floatingHearts, setFloatingHearts] = useState<{ id: number; left: number; size: number }[]>([]);
@@ -1295,6 +1302,8 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
   const didInitRef = useRef(false);
   const heartIdRef = useRef(0);
   const startTimeRef = useRef(stream.startedAt);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   const startCamera = useCallback(async () => {
     try {
@@ -1350,6 +1359,35 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
     if (!cameraStarting && !error && videoRef.current) {
       videoRef.current.play().catch(() => {});
     }
+  }, [cameraStarting, error]);
+
+  // Start recording when the camera stream is ready
+  useEffect(() => {
+    if (cameraStarting || error || !streamRef.current) return;
+
+    try {
+      const recorder = new MediaRecorder(streamRef.current, {
+        mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+          ? "video/webm;codecs=vp9"
+          : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
+          ? "video/webm;codecs=vp8"
+          : "video/webm",
+      });
+      recordedChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      recorder.start(1000);
+      mediaRecorderRef.current = recorder;
+    } catch (err) {
+      console.warn("MediaRecorder not available:", err);
+    }
+
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+    };
   }, [cameraStarting, error]);
 
   const toggleCamera = () => {
@@ -1481,6 +1519,19 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
   }, [comments]);
 
   const handleEndStream = () => {
+    // Stop recording and create blob URL
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.onstop = () => {
+        if (recordedChunksRef.current.length > 0) {
+          const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
+          const url = URL.createObjectURL(blob);
+          setRecordingBlobUrl(url);
+          setRecordingAvailable(true);
+        }
+      };
+      mediaRecorderRef.current.stop();
+    }
+
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
     }
@@ -1490,8 +1541,47 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
   };
 
   const handleFinishSummary = () => {
+    if (recordingBlobUrl) URL.revokeObjectURL(recordingBlobUrl);
     setShowStreamSummary(false);
     onEnd();
+  };
+
+  const handleDownloadRecording = () => {
+    if (!recordingBlobUrl) return;
+    const a = document.createElement("a");
+    a.href = recordingBlobUrl;
+    a.download = `voxel_live_${stream.title.replace(/[^a-z0-9]/gi, "_")}_${Date.now()}.webm`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleSaveStreamToFeed = async () => {
+    if (!currentUser || !recordingBlobUrl || isSavingStream || streamSaved) return;
+    setIsSavingStream(true);
+    try {
+      const blob = await fetch(recordingBlobUrl).then((r) => r.blob());
+      const { url, id } = await uploadFile(blob, `livestream_${stream.id}`);
+      await createPost({
+        authorUsername: currentUser.username,
+        authorName: currentUser.name,
+        authorAvatar: currentUser.avatar || "",
+        caption: `Live stream: ${stream.title}`,
+        hashtags: `live ${stream.category.replace(/\\s+/g, "")}`.trim(),
+        type: "video",
+        mediaUrls: [url],
+        mediaIds: [id],
+        privacy: "Public",
+        allowDownload: true,
+        allowComments: true,
+        allowDuet: false,
+      });
+      setStreamSaved(true);
+    } catch (err) {
+      console.error("Failed to save stream:", err);
+    } finally {
+      setIsSavingStream(false);
+    }
   };
 
   const handleSendComment = () => {
@@ -1842,6 +1932,42 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
                         <span className="text-[10px] text-white font-medium">{g.name} x{g.count}</span>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Save stream recording */}
+              {recordingAvailable && (
+                <div className="space-y-2">
+                  <div className="glass rounded-2xl p-3 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-vox-purple/20 flex items-center justify-center shrink-0">
+                      <Video className="w-5 h-5 text-vox-purple" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white">Stream Recording Ready</p>
+                      <p className="text-[10px] text-vox-muted">Save to your feed or download to device</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSaveStreamToFeed}
+                      disabled={isSavingStream || streamSaved}
+                      className="flex-1 bg-gradient-to-r from-vox-purple to-vox-pink rounded-2xl py-3 text-sm font-bold text-white touch-feedback disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {isSavingStream ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                      ) : streamSaved ? (
+                        <><Check className="w-4 h-4" /> Saved to Feed</>
+                      ) : (
+                        "Save to Feed"
+                      )}
+                    </button>
+                    <button
+                      onClick={handleDownloadRecording}
+                      className="glass rounded-2xl py-3 px-4 text-sm font-bold text-white touch-feedback flex items-center justify-center gap-2"
+                    >
+                      <Download className="w-4 h-4" /> Save
+                    </button>
                   </div>
                 </div>
               )}
