@@ -1292,6 +1292,7 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
   const [streamSaved, setStreamSaved] = useState(false);
   const [recordingAvailable, setRecordingAvailable] = useState(false);
   const [recordingBlobUrl, setRecordingBlobUrl] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
   const [beautyFilter, setBeautyFilter] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [floatingHearts, setFloatingHearts] = useState<{ id: number; left: number; size: number }[]>([]);
@@ -1365,20 +1366,32 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
   useEffect(() => {
     if (cameraStarting || error || !streamRef.current) return;
 
-    try {
-      const recorder = new MediaRecorder(streamRef.current, {
-        mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-          ? "video/webm;codecs=vp9"
-          : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
-          ? "video/webm;codecs=vp8"
-          : "video/webm",
-      });
+    // Only reset chunks on the very first recording start
+    if (!mediaRecorderRef.current || mediaRecorderRef.current.state === "inactive") {
       recordedChunksRef.current = [];
+    }
+
+    try {
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
+        ? "video/webm;codecs=vp8"
+        : MediaRecorder.isTypeSupported("video/webm")
+        ? "video/webm"
+        : MediaRecorder.isTypeSupported("video/mp4")
+        ? "video/mp4"
+        : "";
+
+      const recorder = new MediaRecorder(
+        streamRef.current,
+        mimeType ? { mimeType } : undefined,
+      );
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) recordedChunksRef.current.push(e.data);
       };
       recorder.start(1000);
       mediaRecorderRef.current = recorder;
+      setIsRecording(true);
     } catch (err) {
       console.warn("MediaRecorder not available:", err);
     }
@@ -1386,6 +1399,7 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
     return () => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
+        setIsRecording(false);
       }
     };
   }, [cameraStarting, error]);
@@ -1521,15 +1535,18 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
   const handleEndStream = () => {
     // Stop recording and create blob URL
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.onstop = () => {
+      const recorder = mediaRecorderRef.current;
+      recorder.onstop = () => {
         if (recordedChunksRef.current.length > 0) {
-          const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
+          const recordedType = recorder.mimeType || "video/webm";
+          const blob = new Blob(recordedChunksRef.current, { type: recordedType });
           const url = URL.createObjectURL(blob);
           setRecordingBlobUrl(url);
           setRecordingAvailable(true);
         }
       };
-      mediaRecorderRef.current.stop();
+      recorder.stop();
+      setIsRecording(false);
     }
 
     if (streamRef.current) {
@@ -1548,9 +1565,10 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
 
   const handleDownloadRecording = () => {
     if (!recordingBlobUrl) return;
+    const ext = mediaRecorderRef.current?.mimeType?.includes("mp4") ? "mp4" : "webm";
     const a = document.createElement("a");
     a.href = recordingBlobUrl;
-    a.download = `voxel_live_${stream.title.replace(/[^a-z0-9]/gi, "_")}_${Date.now()}.webm`;
+    a.download = `voxel_live_${stream.title.replace(/[^a-z0-9]/gi, "_")}_${Date.now()}.${ext}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1700,6 +1718,12 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
                 </span>
                 <span className="text-xs font-bold text-white">LIVE</span>
               </div>
+              {isRecording && (
+                <div className="flex items-center gap-1 bg-black/50 backdrop-blur-md rounded-full px-2.5 py-1.5 border border-white/10">
+                  <span className="w-2 h-2 rounded-full bg-vox-danger animate-pulse" />
+                  <span className="text-[10px] font-bold text-white/80">REC</span>
+                </div>
+              )}
               <motion.div
                 animate={viewerPulse ? { scale: [1, 1.15, 1] } : { scale: 1 }}
                 transition={{ duration: 0.4 }}
