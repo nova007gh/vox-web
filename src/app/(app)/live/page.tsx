@@ -130,12 +130,15 @@ function GoLiveModal({ onClose, onGoLive }: { onClose: () => void; onGoLive: (ti
   const startPreview = useCallback(async () => {
     try {
       setCameraStarting(true);
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Camera API not available. Please use a modern browser over HTTPS.");
+      }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
       }
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: true,
       });
       streamRef.current = mediaStream;
@@ -160,6 +163,9 @@ function GoLiveModal({ onClose, onGoLive }: { onClose: () => void; onGoLive: (ti
 
   const requestCamera = async () => {
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Camera API not available");
+      }
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user" },
         audio: false,
@@ -181,6 +187,9 @@ function GoLiveModal({ onClose, onGoLive }: { onClose: () => void; onGoLive: (ti
 
   const requestMicrophone = async () => {
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Microphone API not available");
+      }
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       audioStream.getTracks().forEach((t) => t.stop());
       setMicPermission("granted");
@@ -1257,11 +1266,14 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
   const startCamera = useCallback(async () => {
     try {
       setCameraStarting(true);
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Camera API not available. Please use a modern browser over HTTPS.");
+      }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode },
+        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: true,
       });
       streamRef.current = mediaStream;
