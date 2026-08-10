@@ -1,7 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/lib/auth-context";
+import {
+  getWallet,
+  addMoney,
+  sendMoney,
+  topUpCoins,
+  withdraw,
+} from "@/lib/wallet-store";
 import {
   Wallet,
   Eye,
@@ -137,9 +145,10 @@ const billTypes = [
    WALLET PAGE
    ══════════════════════════════════════════════════════════════ */
 export default function WalletPage() {
+  const { currentUser } = useAuth();
   const [balanceVisible, setBalanceVisible] = useState(true);
-  const [balance, setBalance] = useState(5680.45);
-  const [coinBalance, setCoinBalance] = useState(12500);
+  const [balance, setBalance] = useState(0);
+  const [coinBalance, setCoinBalance] = useState(0);
   const [showAddMoney, setShowAddMoney] = useState(false);
   const [showSendMoney, setShowSendMoney] = useState(false);
   const [showTopUp, setShowTopUp] = useState(false);
@@ -164,7 +173,19 @@ export default function WalletPage() {
   const [showGooglePayModal, setShowGooglePayModal] = useState(false);
 
   /* ── rewards state ── */
-  const [rewardPoints, setRewardPoints] = useState(1250);
+  const [rewardPoints, setRewardPoints] = useState(0);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    let active = true;
+    getWallet(currentUser.username).then((w) => {
+      if (!active) return;
+      setBalance(w.fiatBalance);
+      setCoinBalance(w.coinBalance);
+      setRewardPoints(w.rewardPoints);
+    });
+    return () => { active = false; };
+  }, [currentUser]);
 
   /* ── mobile money state ── */
   const [momoPhone, setMomoPhone] = useState("");
@@ -200,9 +221,11 @@ export default function WalletPage() {
 
   const handleAddMoney = () => {
     const amt = parseFloat(addAmount);
-    if (amt > 0) {
-      setBalance(balance + amt);
-      showToast(`GHS ${amt.toFixed(2)} added successfully!`);
+    if (amt > 0 && currentUser) {
+      addMoney(currentUser.username, amt).then((w) => {
+        setBalance(w.fiatBalance);
+        showToast(`GHS ${amt.toFixed(2)} added successfully!`);
+      });
       setShowAddMoney(false);
       setAddAmount("");
     }
@@ -210,24 +233,34 @@ export default function WalletPage() {
 
   const handleSendMoney = () => {
     const amt = parseFloat(sendAmount);
-    if (amt > 0 && sendRecipient && amt <= balance) {
-      setBalance(balance - amt);
-      showToast(`Sent GHS ${amt.toFixed(2)} to ${sendRecipient}`);
-      setShowSendMoney(false);
-      setSendAmount("");
-      setSendRecipient("");
-    } else if (amt > balance) {
-      showToast("Insufficient balance!");
+    if (amt > 0 && sendRecipient && currentUser) {
+      sendMoney(currentUser.username, sendRecipient, amt).then((res) => {
+        if (res.success && res.wallet) {
+          setBalance(res.wallet.fiatBalance);
+          showToast(`Sent GHS ${amt.toFixed(2)} to ${sendRecipient}`);
+          setShowSendMoney(false);
+          setSendAmount("");
+          setSendRecipient("");
+        } else {
+          showToast(res.error || "Send failed");
+        }
+      });
     }
   };
 
   const handleTopUp = () => {
-    if (selectedCoinPkg !== null) {
-      const pkg = coinPackages[selectedCoinPkg];
-      setCoinBalance(coinBalance + pkg.coins + (pkg.bonus ? Math.floor(pkg.coins * 0.1) : 0));
-      showToast(`${pkg.coins} coins purchased!`);
-      setShowTopUp(false);
-      setSelectedCoinPkg(null);
+    if (selectedCoinPkg !== null && currentUser) {
+      topUpCoins(currentUser.username, selectedCoinPkg).then((res) => {
+        if (res.success && res.wallet) {
+          setBalance(res.wallet.fiatBalance);
+          setCoinBalance(res.wallet.coinBalance);
+          showToast(`${res.wallet.coinBalance} coins after top-up`);
+          setShowTopUp(false);
+          setSelectedCoinPkg(null);
+        } else {
+          showToast(res.error || "Top-up failed");
+        }
+      });
     }
   };
 
@@ -252,12 +285,14 @@ export default function WalletPage() {
 
   const handleMobileMoney = () => {
     const amt = parseFloat(momoAmount);
-    if (momoPhone && amt > 0) {
-      setBalance(balance + amt);
-      showToast(`Mobile Money payment processed: GHS ${amt.toFixed(2)}`);
-      setShowMobileMoneyModal(false);
-      setMomoPhone("");
-      setMomoAmount("");
+    if (momoPhone && amt > 0 && currentUser) {
+      addMoney(currentUser.username, amt, "Mobile Money").then((w) => {
+        setBalance(w.fiatBalance);
+        showToast(`Mobile Money payment processed: GHS ${amt.toFixed(2)}`);
+        setShowMobileMoneyModal(false);
+        setMomoPhone("");
+        setMomoAmount("");
+      });
     } else {
       showToast("Enter phone and amount");
     }
@@ -289,15 +324,17 @@ export default function WalletPage() {
 
   const handleWithdraw = () => {
     const amt = parseFloat(withdrawAmount);
-    if (amt > 0 && amt <= balance) {
-      setBalance(balance - amt);
-      showToast(`Withdrew GHS ${amt.toFixed(2)} via ${withdrawMethod}`);
-      setShowWithdrawModal(false);
-      setWithdrawAmount("");
-    } else if (amt > balance) {
-      showToast("Insufficient balance!");
-    } else {
-      showToast("Enter a valid amount");
+    if (amt > 0 && currentUser) {
+      withdraw(currentUser.username, amt).then((res) => {
+        if (res.success && res.wallet) {
+          setBalance(res.wallet.fiatBalance);
+          showToast(`Withdrew GHS ${amt.toFixed(2)} via ${withdrawMethod}`);
+          setShowWithdrawModal(false);
+          setWithdrawAmount("");
+        } else {
+          showToast(res.error || "Withdraw failed");
+        }
+      });
     }
   };
 
