@@ -303,6 +303,7 @@ function GoLiveModal({ onClose, onGoLive }: { onClose: () => void; onGoLive: (ti
                   autoPlay
                   playsInline
                   muted
+                  preload="auto"
                   onLoadedMetadata={() => { if (videoRef.current) videoRef.current.play().catch(() => {}); }}
                   onCanPlay={() => { if (videoRef.current) videoRef.current.play().catch(() => {}); }}
                   className="absolute inset-0 w-full h-full object-cover"
@@ -1503,6 +1504,7 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
               autoPlay
               playsInline
               muted
+              preload="auto"
               onLoadedMetadata={() => { if (videoRef.current) videoRef.current.play().catch(() => {}); }}
               onCanPlay={() => { if (videoRef.current) videoRef.current.play().catch(() => {}); }}
               className="absolute inset-0 w-full h-full object-cover"
