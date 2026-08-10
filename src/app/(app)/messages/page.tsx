@@ -43,6 +43,7 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { sendMessage, subscribeToMessages, subscribeToConversations, markMessagesAsRead, subscribeToTyping, setTypingStatus, uploadFile, compressImageForFirestore, type ChatMessage } from "@/lib/firebase-store";
 import { getAccount, accounts } from "@/lib/accounts";
+import { getWallet, deductCoins, earnFromStream } from "@/lib/wallet-store";
 
 /* ───────────────────────────── HELPERS ───────────────────────────── */
 
@@ -556,12 +557,22 @@ export default function MessagesPage() {
   const [searchInChat, setSearchInChat] = useState(false);
   const [searchInChatQuery, setSearchInChatQuery] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [coinBalance, setCoinBalance] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
   };
+
+  useEffect(() => {
+    if (!currentUser) return;
+    let active = true;
+    getWallet(currentUser.username).then((w) => {
+      if (active) setCoinBalance(w.coinBalance);
+    });
+    return () => { active = false; };
+  }, [currentUser]);
 
   /* ─────────────────────── CALL CONTROLS ─────────────────────── */
   const formatDuration = (s: number) => {
@@ -722,17 +733,33 @@ export default function MessagesPage() {
   };
 
   const handleSendGift = (gift: { emoji: string; name: string; cost: number }) => {
-    const newMsg: Message = {
-      id: messages.length + 1,
-      sender: "me",
-      type: "gift",
-      content: `Sent a ${gift.name} (${gift.cost} coins) ${gift.emoji}`,
-      time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
-      read: false,
-    };
-    setMessages([...messages, newMsg]);
-    setShowGiftPanel(false);
-    showToast(`${gift.emoji} ${gift.name} sent!`);
+    if (!currentUser) {
+      showToast("Sign in to send gifts");
+      return;
+    }
+    if (!activeChatUsername) return;
+
+    deductCoins(currentUser.username, gift.cost).then((res) => {
+      if (res.success && res.wallet) {
+        setCoinBalance(res.wallet.coinBalance);
+        const newMsg: Message = {
+          id: messages.length + 1,
+          sender: "me",
+          type: "gift",
+          content: `Sent a ${gift.name} (${gift.cost} coins) ${gift.emoji}`,
+          time: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
+          read: false,
+        };
+        setMessages([...messages, newMsg]);
+        setShowGiftPanel(false);
+        showToast(`${gift.emoji} ${gift.name} sent!`);
+
+        // Credit recipient with 70% of gift value
+        earnFromStream(activeChatUsername, Math.floor(gift.cost * 0.7), "gift");
+      } else {
+        showToast(res.error || "Not enough coins");
+      }
+    });
   };
 
   const handleSelectChat = (id: number) => {
@@ -1352,6 +1379,10 @@ export default function MessagesPage() {
                     exit={{ opacity: 0, y: 10 }}
                     className="absolute bottom-12 right-0 z-20 glass rounded-2xl p-3 shadow-2xl"
                   >
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <span className="text-xs font-medium text-white">Send a Gift</span>
+                      <span className="text-xs text-vox-orange font-medium">{coinBalance.toLocaleString()} coins</span>
+                    </div>
                     <div className="grid grid-cols-4 gap-2">
                       {giftOptions.map((gift) => (
                         <button
