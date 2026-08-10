@@ -181,20 +181,6 @@ function LogoSVG({ size }: { size: number }) {
           el
         </text>
       </g>
-
-      {/* Tagline */}
-      <text
-        x="256"
-        y="440"
-        textAnchor="middle"
-        fontFamily="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
-        fontSize="32"
-        fontWeight="600"
-        fill="url(#voxTextGrad)"
-        letterSpacing="4"
-      >
-        CREATE. CONNECT. EARN.
-      </text>
     </svg>
   );
 }
