@@ -679,7 +679,7 @@ export default function MessagesPage() {
 
   const optionMenuItems = [
     { icon: isMuted ? Bell : BellOff, label: isMuted ? "Unmute" : "Mute", action: () => { setIsMuted(!isMuted); showToast(isMuted ? "Unmuted" : "Muted"); } },
-    { icon: Star, label: activeChat.starred ? "Remove from Favorites" : "Add to Favorites", action: handleToggleFavorite },
+    { icon: Star, label: activeChat?.starred ? "Remove from Favorites" : "Add to Favorites", action: handleToggleFavorite },
     { icon: Search, label: "Search in Chat", action: handleSearchInChat },
     { icon: MessageSquare, label: "Select Messages", action: handleSelectMessages },
     { icon: Eye, label: "View Media", action: handleViewMedia },
@@ -837,6 +837,14 @@ export default function MessagesPage() {
           !showMobileChat ? "hidden lg:flex" : "flex"
         }`}
       >
+        {!activeChat ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-vox-muted gap-3">
+            <MessageCircle className="w-12 h-12 sm:w-16 sm:h-16" />
+            <p className="text-base font-semibold">Select a conversation</p>
+            <p className="text-sm">Choose a chat from the list to start messaging</p>
+          </div>
+        ) : (
+        <>
         {/* Chat Header */}
         <div className="flex items-center justify-between px-3 sm:px-4 lg:px-5 border-b border-white/[0.06] glass-strong backdrop-blur-xl flex-shrink-0" style={{ paddingTop: "var(--safe-top)", paddingBottom: "0.5rem" }}>
           <div className="flex items-center gap-3">
@@ -1285,11 +1293,13 @@ export default function MessagesPage() {
             )}
           </div>
         </div>
+        </>
+        )}
       </main>
 
       {/* ═══════════════════ RIGHT PANEL - CONTACT INFO ═══════════════════ */}
       <AnimatePresence>
-        {showRightPanel && (
+        {showRightPanel && activeChat && (
           <motion.aside
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: 280, opacity: 1 }}
