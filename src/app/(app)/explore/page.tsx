@@ -237,7 +237,7 @@ export default function ExplorePage() {
   const isSearching = query.length > 0;
 
   return (
-    <div className="relative h-full overflow-y-auto overflow-x-hidden scrollbar-hide pb-16 lg:pb-0">
+    <div className="relative h-full overflow-y-auto overflow-x-hidden scrollbar-hide pb-20 lg:pb-0" style={{ paddingBottom: "calc(5rem + var(--safe-bottom, 0px))" }}>
       {/* ═══════ STICKY SEARCH BAR ═══════ */}
       <div className="sticky top-0 z-30 px-3 sm:px-4 pb-3 glass-strong backdrop-blur-xl" style={{ paddingTop: "var(--safe-top)" }} ref={searchRef}>
         <div className="max-w-3xl mx-auto relative">
@@ -443,7 +443,7 @@ export default function ExplorePage() {
       </div>
 
       {/* ═══════ PAGE CONTENT ═══════ */}
-      <div className="px-3 sm:px-4 pb-16 lg:pb-0 space-y-8 max-w-3xl mx-auto overflow-x-hidden">
+      <div className="px-3 sm:px-4 pb-20 lg:pb-0 space-y-8 max-w-3xl mx-auto overflow-x-hidden" style={{ paddingBottom: "calc(5rem + var(--safe-bottom, 0px))" }}>
         {/* ── NO RESULTS STATE ── */}
         {hasNoResults && (
           <motion.div

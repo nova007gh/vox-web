@@ -235,7 +235,7 @@ export default function MarketplacePage() {
 
   return (
     <div className="h-full overflow-y-auto scrollbar-hide">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 pb-24 lg:pb-8 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 pb-24 lg:pb-8 space-y-6" style={{ paddingBottom: "calc(6rem + var(--safe-bottom, 0px))" }}>
         {/* ═══════ HEADER ═══════ */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}

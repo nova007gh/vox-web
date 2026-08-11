@@ -424,7 +424,7 @@ export default function WalletPage() {
   const visibleTransactions = showAllTx ? allTransactions : allTransactions.slice(0, 5);
 
   return (
-    <div className="h-full overflow-y-auto scrollbar-hide pb-16 lg:pb-0">
+    <div className="h-full overflow-y-auto scrollbar-hide pb-20 lg:pb-0" style={{ paddingBottom: "calc(5rem + var(--safe-bottom, 0px))" }}>
       {/* ═══════ STICKY TOP BAR ═══════ */}
       <div
         className="sticky top-0 z-30 glass-strong backdrop-blur-xl"
@@ -438,7 +438,7 @@ export default function WalletPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-3 sm:px-4 py-6 pb-16 lg:pb-0 space-y-8">
+      <div className="max-w-5xl mx-auto px-3 sm:px-4 py-6 pb-20 lg:pb-0 space-y-8" style={{ paddingBottom: "calc(5rem + var(--safe-bottom, 0px))" }}>
 
         {/* ═══════ BALANCE HERO CARD ═══════ */}
         <motion.div
