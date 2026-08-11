@@ -50,6 +50,7 @@ import {
   endLiveStream as localEndLiveStream,
   incrementStreamViewers as localIncrementStreamViewers,
   getStreamById as localGetStreamById,
+  incrementView as localIncrementView,
 } from "./content-store";
 
 export { compressImage, compressImageForFirestore, generateVideoThumbnail, timeAgo, formatCount };
@@ -313,15 +314,27 @@ export async function incrementShare(postId: string): Promise<void> {
   if (p) { p.shares += 1; localStorage.setItem("voxel_posts", JSON.stringify(posts)); }
 }
 
-/** Increment view count */
-export async function incrementView(postId: string): Promise<void> {
+/** Increment view count (only once per viewer). */
+export async function incrementView(postId: string, viewerId?: string): Promise<void> {
   if (USE_FIREBASE && db) {
-    await updateDoc(doc(db, "posts", postId), { views: increment(1) });
+    const postRef = doc(db, "posts", postId);
+    if (viewerId) {
+      // Read current doc and only increment if this viewer has not already viewed
+      const snap = await getDoc(postRef);
+      const data = snap.data() as Record<string, any>;
+      const viewedBy: string[] = data?.viewedBy || [];
+      if (!viewedBy.includes(viewerId)) {
+        await updateDoc(postRef, {
+          views: increment(1),
+          viewedBy: arrayUnion(viewerId),
+        });
+      }
+    } else {
+      await updateDoc(postRef, { views: increment(1) });
+    }
     return;
   }
-  const posts: Post[] = JSON.parse(localStorage.getItem("voxel_posts") || "[]");
-  const p = posts.find((x) => x.id === postId);
-  if (p) { p.views += 1; localStorage.setItem("voxel_posts", JSON.stringify(posts)); }
+  localIncrementView(postId, viewerId);
 }
 
 /** Add a comment */

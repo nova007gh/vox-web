@@ -30,6 +30,7 @@ export interface Post {
   saves: number;
   shares: number;
   views: number;
+  viewedBy?: string[]; // list of user emails who already counted as a view
   likedByMe: boolean;
   savedByMe: boolean;
 }
@@ -269,13 +270,22 @@ export function incrementShare(postId: string): void {
   }
 }
 
-/** Increment view count. */
-export function incrementView(postId: string): void {
+/** Increment view count (only once per viewer). */
+export function incrementView(postId: string, viewerId?: string): void {
   const posts = getAllPosts();
   const post = posts.find((p) => p.id === postId);
   if (post) {
-    post.views += 1;
-    writeJSON(POSTS_KEY, posts);
+    const already = viewerId && post.viewedBy?.includes(viewerId);
+    if (!already && viewerId) {
+      post.viewedBy = post.viewedBy || [];
+      post.viewedBy.push(viewerId);
+      post.views += 1;
+      writeJSON(POSTS_KEY, posts);
+    } else if (!viewerId) {
+      // anonymous view still counts once per anonymous session
+      post.views += 1;
+      writeJSON(POSTS_KEY, posts);
+    }
   }
 }
 

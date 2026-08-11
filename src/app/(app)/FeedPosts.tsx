@@ -185,7 +185,7 @@ export default function FeedPosts() {
   };
 
   const openPost = async (post: Post) => {
-    await incrementView(post.id);
+    await incrementView(post.id, currentUser?.email);
     setSelectedPost(post);
   };
 

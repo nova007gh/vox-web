@@ -346,16 +346,16 @@ export default function HomeFeed() {
       setDirection(dir);
       setCurrentIndex(newIndex);
       setIsPlaying(true);
-      // Increment view on new post
+      // Increment view on new post (only once per user)
       if (visiblePosts[newIndex]) {
-        incrementView(visiblePosts[newIndex].id).catch(() => {});
+        incrementView(visiblePosts[newIndex].id, currentUser?.email).catch(() => {});
       }
       setTimeout(() => {
         isAnimating.current = false;
       }, 450);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visiblePosts.length]
+    [visiblePosts.length, currentUser?.email]
   );
 
   const goNext = useCallback(() => goToPost(currentIndex + 1, 1), [currentIndex, goToPost]);
