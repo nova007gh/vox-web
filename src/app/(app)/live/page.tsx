@@ -40,18 +40,20 @@ import {
 } from "@/lib/wallet-store";
 import { createPost, uploadFile } from "@/lib/firebase-store";
 import {
-  getActiveStreams,
   startLiveStream,
   endLiveStream,
   incrementStreamViewers,
   getStreamById,
+  subscribeToActiveStreams,
+  type LiveStream,
+} from "@/lib/firebase-store";
+import {
   addNotification,
   seedLiveDemoData,
   getLiveProducts,
   markProductSold,
   getLiveAuctions,
   placeBid,
-  type LiveStream,
   type LiveProduct,
   type LiveAuction,
 } from "@/lib/content-store";
@@ -547,19 +549,20 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
 
   useEffect(() => {
     const streamId = streamIdRef.current;
-    incrementStreamViewers(streamId, 1);
-    setViewers((getStreamById(streamId)?.viewers) || 1);
+    incrementStreamViewers(streamId, 1).catch(() => {});
+    getStreamById(streamId).then((s) => setViewers(s?.viewers || 1)).catch(() => {});
     setProducts(getLiveProducts(streamId));
     setAuctions(getLiveAuctions(streamId));
 
     const interval = setInterval(() => {
-      const s = getStreamById(streamId);
-      if (s) {
-        setViewers((prev) => {
-          if (s.viewers > prev) setViewerPulse(true);
-          return s.viewers;
-        });
-      }
+      getStreamById(streamId).then((s) => {
+        if (s) {
+          setViewers((prev) => {
+            if (s.viewers > prev) setViewerPulse(true);
+            return s.viewers;
+          });
+        }
+      }).catch(() => {});
       setProducts(getLiveProducts(streamId));
       setAuctions(getLiveAuctions(streamId));
     }, 3000);
@@ -602,7 +605,7 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
       clearInterval(commentInterval);
       clearInterval(giftersInterval);
       clearInterval(pulseInterval);
-      incrementStreamViewers(streamId, -1);
+      incrementStreamViewers(streamId, -1).catch(() => {});
     };
   }, []);
 
@@ -1436,14 +1439,15 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
   useEffect(() => {
     const streamId = streamIdRef.current;
     const interval = setInterval(() => {
-      const s = getStreamById(streamId);
-      if (s) {
-        setViewers((prev) => {
-          if (s.viewers > prev) setViewerPulse(true);
-          if (s.viewers > peakViewers) setPeakViewers(s.viewers);
-          return s.viewers;
-        });
-      }
+      getStreamById(streamId).then((s) => {
+        if (s) {
+          setViewers((prev) => {
+            if (s.viewers > prev) setViewerPulse(true);
+            if (s.viewers > peakViewers) setPeakViewers(s.viewers);
+            return s.viewers;
+          });
+        }
+      }).catch(() => {});
     }, 3000);
     return () => clearInterval(interval);
   }, [peakViewers]);
@@ -1552,7 +1556,7 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
     }
-    endLiveStream(streamIdRef.current);
+    endLiveStream(streamIdRef.current).catch(() => {});
     setShowEndConfirm(false);
     setShowStreamSummary(true);
   };
@@ -2032,27 +2036,29 @@ export default function LivePage() {
       return;
     }
     seedLiveDemoData();
-    const loadData = () => {
-      setStreams(getActiveStreams());
-      setProducts(getLiveProducts());
-      setAuctions(getLiveAuctions());
-    };
-    loadData();
+    setProducts(getLiveProducts());
+    setAuctions(getLiveAuctions());
+
+    // Real-time subscription to active live streams (Firebase or localStorage)
+    const unsubscribe = subscribeToActiveStreams((activeStreams) => {
+      setStreams(activeStreams);
+    });
+
     // Deep link: /live?watch=<streamId> opens that stream directly
     if (typeof window !== "undefined") {
       const watchId = new URLSearchParams(window.location.search).get("watch");
       if (watchId) {
-        const target = getStreamById(watchId);
-        if (target && target.active) setActiveStream(target);
+        getStreamById(watchId).then((target) => {
+          if (target && target.active) setActiveStream(target);
+        }).catch(() => {});
       }
     }
-    const interval = setInterval(loadData, 5000);
-    return () => clearInterval(interval);
+    return () => unsubscribe();
   }, [hydrated, currentUser, router]);
 
-  const handleGoLive = (title: string, category: string, mediaStream: MediaStream | null) => {
+  const handleGoLive = async (title: string, category: string, mediaStream: MediaStream | null) => {
     if (!currentUser) return;
-    const stream = startLiveStream({
+    const stream = await startLiveStream({
       hostUsername: currentUser.username,
       hostName: currentUser.name,
       hostAvatar: currentUser.avatar || "",
@@ -2079,10 +2085,13 @@ export default function LivePage() {
     }
   };
 
-  const handleEndStream = () => {
+  const handleEndStream = async () => {
+    if (hostStream) {
+      await endLiveStream(hostStream.id).catch(() => {});
+    }
     setHostStream(null);
     setHostMediaStream(null);
-    setStreams(getActiveStreams());
+    setStreams((prev) => prev.filter((s) => s.id !== hostStream?.id));
   };
 
   const featuredStream = streams[0] || null;

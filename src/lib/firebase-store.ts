@@ -13,6 +13,7 @@ import {
   updateDoc,
   deleteDoc,
   getDocs,
+  getDoc,
   query,
   where,
   onSnapshot,
@@ -35,10 +36,16 @@ import {
   formatCount,
   type Post,
   type Comment,
+  type LiveStream,
+  getActiveStreams as localGetActiveStreams,
+  startLiveStream as localStartLiveStream,
+  endLiveStream as localEndLiveStream,
+  incrementStreamViewers as localIncrementStreamViewers,
+  getStreamById as localGetStreamById,
 } from "./content-store";
 
 export { compressImage, compressImageForFirestore, generateVideoThumbnail, timeAgo, formatCount };
-export type { Post, Comment };
+export type { Post, Comment, LiveStream };
 
 const USE_FIREBASE = isFirebaseConfigured();
 const USE_STORAGE = isFirebaseConfigured() && storage;
@@ -785,6 +792,142 @@ export function subscribeToConversations(
 /** Get chat ID (consistent regardless of who's sender/receiver) */
 function getChatId(userA: string, userB: string): string {
   return [userA, userB].sort().join("_");
+}
+
+/* ─────────────── LIVE STREAMS ─────────────── */
+
+/** Start a new live stream (real-time, shared across all users) */
+export async function startLiveStream(data: {
+  hostUsername: string;
+  hostName: string;
+  hostAvatar: string;
+  title: string;
+  category: string;
+}): Promise<LiveStream> {
+  if (USE_FIREBASE && db) {
+    try {
+      const stream: LiveStream = {
+        id: `live_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        hostUsername: data.hostUsername,
+        hostName: data.hostName,
+        hostAvatar: data.hostAvatar,
+        title: data.title,
+        category: data.category,
+        startedAt: Date.now(),
+        viewers: 1,
+        active: true,
+      };
+      const docRef = await addDoc(collection(db, "liveStreams"), {
+        ...stream,
+        createdAt: serverTimestamp(),
+      });
+      // Return with Firestore doc id as canonical id
+      return { ...stream, id: docRef.id };
+    } catch (err) {
+      console.error("Firestore startLiveStream failed, using localStorage:", err);
+    }
+  }
+  return localStartLiveStream(data);
+}
+
+/** End a live stream by id */
+export async function endLiveStream(streamId: string): Promise<void> {
+  if (USE_FIREBASE && db) {
+    try {
+      await updateDoc(doc(db, "liveStreams", streamId), { active: false, endedAt: serverTimestamp() });
+      return;
+    } catch (err) {
+      console.error("Firestore endLiveStream failed, using localStorage:", err);
+    }
+  }
+  return localEndLiveStream(streamId);
+}
+
+/** Subscribe to active live streams in real time */
+export function subscribeToActiveStreams(callback: (streams: LiveStream[]) => void): Unsubscribe | (() => void) {
+  if (USE_FIREBASE && db) {
+    try {
+      const cutoff = Date.now() - 4 * 60 * 60 * 1000;
+      const q = query(
+        collection(db, "liveStreams"),
+        where("active", "==", true),
+        where("startedAt", ">", cutoff),
+      );
+      return onSnapshot(q, (snapshot) => {
+        const streams: LiveStream[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          streams.push({
+            id: docSnap.id,
+            hostUsername: data.hostUsername,
+            hostName: data.hostName,
+            hostAvatar: data.hostAvatar,
+            title: data.title,
+            category: data.category,
+            startedAt: data.startedAt?.toMillis?.() || data.startedAt || 0,
+            viewers: data.viewers || 0,
+            active: data.active ?? true,
+          });
+        });
+        // Sort by viewers desc
+        callback(streams.sort((a, b) => b.viewers - a.viewers));
+      }, (error) => {
+        console.error("Firestore live streams subscription error:", error);
+      });
+    } catch (err) {
+      console.error("Firestore live streams setup failed:", err);
+    }
+  }
+
+  // Fallback: localStorage
+  const update = () => {
+    callback(localGetActiveStreams());
+  };
+  update();
+  const interval = setInterval(update, 3000);
+  return () => clearInterval(interval);
+}
+
+/** Increment or decrement viewer count for a stream */
+export async function incrementStreamViewers(streamId: string, delta: number): Promise<void> {
+  if (USE_FIREBASE && db) {
+    try {
+      const streamRef = doc(db, "liveStreams", streamId);
+      await updateDoc(streamRef, { viewers: increment(delta) });
+      return;
+    } catch (err) {
+      console.error("Firestore incrementStreamViewers failed:", err);
+    }
+  }
+  return localIncrementStreamViewers(streamId, delta);
+}
+
+/** Get a single stream by id */
+export async function getStreamById(streamId: string): Promise<LiveStream | null> {
+  if (USE_FIREBASE && db) {
+    try {
+      const dbInstance = db;
+      const streamDoc = await getDoc(doc(dbInstance, "liveStreams", streamId));
+      if (streamDoc.exists()) {
+        const data = streamDoc.data();
+        return {
+          id: streamDoc.id,
+          hostUsername: data.hostUsername,
+          hostName: data.hostName,
+          hostAvatar: data.hostAvatar,
+          title: data.title,
+          category: data.category,
+          startedAt: data.startedAt?.toMillis?.() || data.startedAt || 0,
+          viewers: data.viewers || 0,
+          active: data.active ?? true,
+        };
+      }
+      return null;
+    } catch (err) {
+      console.error("Firestore getStreamById failed:", err);
+    }
+  }
+  return localGetStreamById(streamId);
 }
 
 /* ─────────────── HELPERS ─────────────── */
