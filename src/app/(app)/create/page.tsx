@@ -30,6 +30,8 @@ import {
   DollarSign,
   Tag,
   Radio,
+  Search,
+  Heart,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -126,6 +128,10 @@ export default function CreatePage() {
   // Creator tool states
   const [selectedMusic, setSelectedMusic] = useState<string | null>(null);
   const [musicPlaying, setMusicPlaying] = useState<string | null>(null);
+  const [musicSearch, setMusicSearch] = useState("");
+  const [musicFavTab, setMusicFavTab] = useState<"all" | "favorites" | "trending">("all");
+  const [musicFavorites, setMusicFavorites] = useState<string[]>([]);
+  const [musicDuration, setMusicDuration] = useState(30); // user-selectable clip length (seconds)
   const [selectedEffect, setSelectedEffect] = useState<string | null>(null);
   const [selectedBackground, setSelectedBackground] = useState<string | null>(null);
   const [generatedCaptions, setGeneratedCaptions] = useState<string | null>(null);
@@ -171,6 +177,33 @@ export default function CreatePage() {
       }
     }
   }, []);
+
+  // Load music favorites on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = window.localStorage.getItem("voxel_music_favorites");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setMusicFavorites(Array.isArray(parsed) ? parsed : []);
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }, []);
+
+  const toggleMusicFavorite = (trackName: string) => {
+    setMusicFavorites((prev) => {
+      const next = prev.includes(trackName)
+        ? prev.filter((t) => t !== trackName)
+        : [...prev, trackName];
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("voxel_music_favorites", JSON.stringify(next));
+      }
+      return next;
+    });
+  };
 
   // Handle file selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -643,16 +676,121 @@ export default function CreatePage() {
   };
 
   const musicList = [
-    { name: "Afrobeats Mix", artist: "DJ Flex", duration: "0:30" },
-    { name: "Highlife Remix", artist: "Nana Ama", duration: "0:28" },
-    { name: "Amapiano Beat", artist: "Kojo 360", duration: "0:45" },
-    { name: "Ghana Drill", artist: "Kwame Jr", duration: "0:35" },
+    { name: "Afrobeats Mix", artist: "DJ Flex", duration: 90, trending: true },
+    { name: "Highlife Remix", artist: "Nana Ama", duration: 75, trending: true },
+    { name: "Amapiano Beat", artist: "Kojo 360", duration: 90, trending: true },
+    { name: "Ghana Drill", artist: "Kwame Jr", duration: 60, trending: false },
+    { name: "Hiplife Vibes", artist: "Ama Serwaa", duration: 90, trending: true },
+    { name: "Saxophone Soul", artist: "Kofi M", duration: 45, trending: false },
+    { name: "Gospel Praise", artist: "Grace Voices", duration: 90, trending: false },
+    { name: "Dancehall Heat", artist: "Ras Kofi", duration: 60, trending: true },
+    { name: "Afro Pop", artist: "Adwoa B", duration: 75, trending: false },
+    { name: "Traditional Drums", artist: "Ga Mashie", duration: 30, trending: false },
+    { name: "Reggae Roots", artist: "Irie Man", duration: 90, trending: false },
+    { name: "Hip Hop Accra", artist: "Young T", duration: 60, trending: true },
+    { name: "Jazz Lounge", artist: "The Natives", duration: 75, trending: false },
+    { name: "Electronic Pulse", artist: "Synth K", duration: 90, trending: false },
+    { name: "Wedding Bells", artist: "Ama & Kofi", duration: 60, trending: false },
+    { name: "Street Anthems", artist: "Accra Boyz", duration: 90, trending: true },
   ];
 
   const panelContent: Record<string, { title: string; content: React.ReactNode }> = {
     upload: { title: "Upload Media", content: <div className="border-2 border-dashed border-white/10 rounded-2xl p-4 sm:p-8 text-center touch-feedback cursor-pointer" onClick={() => fileInputRef.current?.click()}><Upload className="w-10 h-10 sm:w-16 sm:h-16 mx-auto text-vox-muted mb-3" /><p className="text-sm sm:text-base font-semibold text-white">Drag & drop or click to upload</p><p className="text-xs text-vox-muted mt-1">MP4, MOV, JPG, PNG up to 500MB</p><button className="mt-4 btn-gradient rounded-full px-4 py-2 text-sm font-semibold text-white touch-feedback" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>Browse Files</button></div> },
     "ai-edit": { title: "AI Edit", content: <div className="space-y-3">{["Auto color correction", "Stabilization", "Noise reduction", "Smart cropping"].map((f) => <button key={f} onClick={() => { setAiEnhancements((prev) => prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]); }} className={aiEnhancements.includes(f) ? "w-full text-left p-3 rounded-xl touch-feedback transition-colors flex items-center justify-between text-sm bg-vox-green/20 border border-vox-green text-white" : "w-full text-left p-3 rounded-xl touch-feedback transition-colors flex items-center justify-between text-sm bg-white/[0.04] text-white hover:bg-white/[0.08]"}><span>{f}</span>{aiEnhancements.includes(f) ? <Check className="w-4 h-4 text-vox-green" /> : null}</button>)}</div> },
-    music: { title: "Add Music", content: <div className="space-y-2">{musicList.map((s) => <button key={s.name} onClick={() => handleMusicPreview(s.name)} className={selectedMusic === s.name ? "w-full flex items-center justify-between p-3 rounded-xl touch-feedback transition-colors bg-vox-pink/20 border border-vox-pink" : "w-full flex items-center justify-between p-3 rounded-xl touch-feedback transition-colors bg-white/[0.04] hover:bg-white/[0.08]"}><div className="text-left"><p className="text-sm text-white font-medium">{s.name} <span className="text-vox-muted font-normal">— {s.artist}</span></p><p className="text-xs text-vox-muted">{s.duration}</p></div><span className="text-xs text-vox-pink">{musicPlaying === s.name ? "Playing..." : selectedMusic === s.name ? "Selected" : "Preview"}</span></button>)}</div> },
+    music: { title: "Add Music", content: <div className="space-y-3">
+      {/* Search bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-vox-muted" />
+        <input
+          type="text"
+          value={musicSearch}
+          onChange={(e) => setMusicSearch(e.target.value)}
+          placeholder="Search for music or artists..."
+          className="w-full h-11 pl-10 pr-4 rounded-full bg-white/[0.06] border border-white/10 text-white text-sm placeholder:text-vox-muted/60 focus:outline-none focus:border-vox-pink/50 transition-all"
+        />
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2">
+        {([["all", "All"], ["trending", "Trending"], ["favorites", "Favorites"]] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setMusicFavTab(key)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold touch-feedback transition-all ${musicFavTab === key ? "bg-vox-pink/20 border border-vox-pink text-white" : "bg-white/[0.04] text-vox-muted hover:text-white"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Duration selector */}
+      <div className="space-y-1.5 px-1">
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-vox-muted">Clip length: {musicDuration}s</label>
+          <span className="text-[10px] text-vox-muted/60">Max 90s</span>
+        </div>
+        <input
+          type="range"
+          min="15"
+          max="90"
+          step="15"
+          value={musicDuration}
+          onChange={(e) => setMusicDuration(Number(e.target.value))}
+          className="w-full"
+          style={{ accentColor: "#ec4899" }}
+        />
+      </div>
+
+      {/* Track list */}
+      <div className="space-y-2 max-h-[45vh] overflow-y-auto scrollbar-hide">
+        {musicList
+          .filter((s) => {
+            if (musicFavTab === "favorites") return musicFavorites.includes(s.name);
+            if (musicFavTab === "trending") return s.trending;
+            return true;
+          })
+          .filter((s) => {
+            if (!musicSearch.trim()) return true;
+            const q = musicSearch.toLowerCase();
+            return s.name.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q);
+          })
+          .length === 0 ? (
+          <p className="text-center text-sm text-vox-muted py-6">
+            {musicFavTab === "favorites" ? "No favorites yet. Tap the heart on a track to save it." : "No tracks found."}
+          </p>
+        ) : musicList
+          .filter((s) => {
+            if (musicFavTab === "favorites") return musicFavorites.includes(s.name);
+            if (musicFavTab === "trending") return s.trending;
+            return true;
+          })
+          .filter((s) => {
+            if (!musicSearch.trim()) return true;
+            const q = musicSearch.toLowerCase();
+            return s.name.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q);
+          })
+          .map((s) => (
+          <div
+            key={s.name}
+            className={`w-full flex items-center justify-between p-3 rounded-xl touch-feedback transition-colors ${selectedMusic === s.name ? "bg-vox-pink/20 border border-vox-pink" : "bg-white/[0.04] hover:bg-white/[0.08]"}`}
+          >
+            <button onClick={() => handleMusicPreview(s.name)} className="flex-1 text-left min-w-0">
+              <p className="text-sm text-white font-medium truncate">
+                {s.name} <span className="text-vox-muted font-normal">— {s.artist}</span>
+                {s.trending && <span className="ml-2 text-[10px] text-vox-orange font-bold">🔥 TRENDING</span>}
+              </p>
+              <p className="text-xs text-vox-muted">{Math.floor(musicDuration / 60)}:{(musicDuration % 60).toString().padStart(2, "0")} clip · {Math.floor(s.duration / 60)}:{(s.duration % 60).toString().padStart(2, "0")} full</p>
+            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={() => toggleMusicFavorite(s.name)} className="touch-feedback p-1">
+                <Heart className={`w-4 h-4 ${musicFavorites.includes(s.name) ? "fill-vox-pink text-vox-pink" : "text-vox-muted hover:text-white"}`} />
+              </button>
+              <span className="text-xs text-vox-pink">{musicPlaying === s.name ? "Playing..." : selectedMusic === s.name ? "Selected" : "Preview"}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div> },
     trim: { title: "Trim & Split", content: <div className="space-y-4 px-1"><p className="text-sm text-vox-muted">Select start and end points</p><div className="space-y-2"><label className="text-xs text-vox-muted">Start: {trimStart}%</label><input type="range" min="0" max={trimEnd - 5} value={trimStart} onChange={(e) => setTrimStart(Number(e.target.value))} className="w-full" style={{ accentColor: "#ec4899" }} /></div><div className="space-y-2"><label className="text-xs text-vox-muted">End: {trimEnd}%</label><input type="range" min={trimStart + 5} max="100" value={trimEnd} onChange={(e) => setTrimEnd(Number(e.target.value))} className="w-full" style={{ accentColor: "#ec4899" }} /></div><p className="text-xs text-vox-muted">Preview control only. Real trimming not supported in browser.</p></div> },
     captions: { title: "Auto Captions", content: <div className="space-y-3"><button onClick={handleGenerateCaptions} disabled={isGeneratingCaptions} className="btn-gradient w-full rounded-full py-2.5 text-sm font-semibold text-white touch-feedback disabled:opacity-60">{isGeneratingCaptions ? <><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Generating...</> : "Generate Captions"}</button>{generatedCaptions && <div className="p-3 rounded-xl bg-white/[0.04] text-sm text-white border border-white/10">{generatedCaptions}</div>}</div> },
     effects: { title: "Effects & Filters", content: <div className="grid grid-cols-4 gap-2">{["✨", "🔥", "💫", "🌟", "💎", "🎨", "🌈", "⚡"].map((e) => <button key={e} onClick={() => setSelectedEffect(selectedEffect === e ? null : e)} className={selectedEffect === e ? "aspect-square rounded-xl touch-feedback transition-colors flex items-center justify-center text-2xl bg-vox-pink/30 border border-vox-pink" : "aspect-square rounded-xl touch-feedback transition-colors flex items-center justify-center text-2xl bg-white/[0.06] hover:bg-white/[0.12]"}>{e}</button>)}</div> },
@@ -1052,7 +1190,7 @@ export default function CreatePage() {
                     <div className="grid grid-cols-2 gap-1 p-1">
                       {previewUrls.map((url, i) => (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img key={i} src={url} alt={`Preview ${i + 1}`} className="w-full aspect-square object-cover rounded-lg" style={{ filter: selectedEffect ? effectMap[selectedEffect] : undefined }} />
+                        <img key={i} src={url} alt={`Preview ${i + 1}`} className="w-full aspect-square object-cover object-top rounded-lg" style={{ filter: selectedEffect ? effectMap[selectedEffect] : undefined }} />
                       ))}
                     </div>
                   )}
