@@ -103,6 +103,7 @@ export default function AuthPage() {
   const { login, signup, currentUser, hydrated } = useAuth();
   const router = useRouter();
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /* ── redirect if already logged in (wait for hydration) ── */
   useEffect(() => {
@@ -128,7 +129,7 @@ export default function AuthPage() {
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [generatedOtp, setGeneratedOtp] = useState("");
 
-  const handlePhoneLogin = () => {
+  const handlePhoneLogin = async () => {
     setPhoneError(null);
     if (phoneStep === "phone") {
       if (!phoneNumber || phoneNumber.replace(/\D/g, "").length < 9) {
@@ -151,7 +152,7 @@ export default function AuthPage() {
       }
       // Create a phone-based account and log in
       const phoneUsername = "phone_" + phoneNumber.replace(/\D/g, "").slice(-6);
-      const result = signup({
+      const result = await signup({
         name: "Phone User",
         username: phoneUsername,
         email: phoneUsername + "@vox.el",
@@ -163,7 +164,7 @@ export default function AuthPage() {
         router.push("/");
       } else {
         // If signup fails (duplicate), try logging in
-        const loginResult = login(phoneUsername + "@vox.el", "phone_" + generatedOtp);
+        const loginResult = await login(phoneUsername + "@vox.el", "phone_" + generatedOtp);
         if (loginResult.success) {
           setShowPhoneModal(false);
           router.push("/");
@@ -198,36 +199,45 @@ export default function AuthPage() {
   );
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
       setAuthError(null);
-      if (mode === "signin") {
-        const result = login(email, password);
-        if (result.success) {
-          router.push("/");
+      if (isSubmitting) return;
+      setIsSubmitting(true);
+      try {
+        if (mode === "signin") {
+          const result = await login(email, password);
+          if (result.success) {
+            router.push("/");
+          } else {
+            setAuthError(result.error || "Login failed");
+          }
         } else {
-          setAuthError(result.error || "Login failed");
+          if (!agreed) {
+            setAuthError("Please agree to the Terms & Privacy Policy");
+            setIsSubmitting(false);
+            return;
+          }
+          const result = await signup({
+            name: fullName,
+            username: username || email.split("@")[0],
+            email,
+            password,
+            bio: "",
+          });
+          if (result.success) {
+            router.push("/");
+          } else {
+            setAuthError(result.error || "Signup failed");
+          }
         }
-      } else {
-        if (!agreed) {
-          setAuthError("Please agree to the Terms & Privacy Policy");
-          return;
-        }
-        const result = signup({
-          name: fullName,
-          username: username || email.split("@")[0],
-          email,
-          password,
-          bio: "",
-        });
-        if (result.success) {
-          router.push("/");
-        } else {
-          setAuthError(result.error || "Signup failed");
-        }
+      } catch {
+        setAuthError("Something went wrong. Please try again.");
+      } finally {
+        setIsSubmitting(false);
       }
     },
-    [fullName, username, email, password, agreed, mode, login, signup, router]
+    [fullName, username, email, password, agreed, mode, login, signup, router, isSubmitting]
   );
 
   /* ────────────────────── render ────────────────────── */
@@ -771,7 +781,8 @@ export default function AuthPage() {
                 custom={10}
                 type="submit"
                 disabled={
-                  mode === "signup"
+                  isSubmitting ||
+                  (mode === "signup"
                     ? !agreed ||
                       !fullName ||
                       !username ||
@@ -779,11 +790,11 @@ export default function AuthPage() {
                       !passwordChecks.length ||
                       !passwordChecks.number ||
                       !passwordChecks.special
-                    : !email || !password
+                    : !email || !password)
                 }
                 className="w-full btn-gradient rounded-2xl py-3 text-base font-semibold text-white touch-feedback disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:transform-none disabled:hover:shadow-none transition-all"
               >
-                {mode === "signup" ? "Sign Up" : "Sign In"}
+                {isSubmitting ? "Please wait..." : mode === "signup" ? "Sign Up" : "Sign In"}
               </motion.button>
             </form>
 

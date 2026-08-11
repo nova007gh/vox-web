@@ -2,10 +2,9 @@
 
 /* ─────────────────────────────────────────────────────────────
    CLIENT-SIDE AUTH CONTEXT
-   A lightweight localStorage-based authentication simulation.
-   No real crypto — credentials are matched against the seeded
-   `accounts` array and any user-created accounts stored under
-   the "voxel_users" localStorage key.
+   Firebase Auth + Firestore backed user accounts.
+   Falls back to localStorage seed/signup accounts when Firebase
+   is not configured or unavailable.
    ───────────────────────────────────────────────────────────── */
 
 import {
@@ -17,6 +16,15 @@ import {
   type ReactNode,
 } from "react";
 import { accounts, type Account } from "./accounts";
+import { isFirebaseConfigured } from "./firebase";
+import {
+  createUserAccount,
+  loginUserAccount,
+  loadUserProfile,
+  updateUserProfile,
+  subscribeToAuth,
+  type UserProfile,
+} from "./firebase-store";
 
 /* ─────────────────────────────────────────────────────────────
    CONSTANTS
@@ -28,12 +36,6 @@ const USERS_KEY = "voxel_users";
 /* ─────────────────────────────────────────────────────────────
    TYPES
    ───────────────────────────────────────────────────────────── */
-
-/** Payload persisted to localStorage so a session can be restored. */
-interface SessionPayload {
-  email: string;
-  source: "seed" | "signup";
-}
 
 /** Shape of the data passed to `signup()`. */
 export interface SignupData {
@@ -53,9 +55,9 @@ interface AuthContextValue {
   currentUser: Account | null;
   isAuthenticated: boolean;
   hydrated: boolean;
-  login: (email: string, password: string) => { success: boolean; error?: string };
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  signup: (data: SignupData) => { success: boolean; error?: string };
+  signup: (data: SignupData) => Promise<{ success: boolean; error?: string }>;
   updateProfile: (updates: Partial<Pick<Account, "name" | "username" | "bio" | "avatar" | "cover" | "country">>) => void;
 }
 
@@ -110,27 +112,52 @@ function setSignupUsers(users: Account[]): void {
   writeJSON(USERS_KEY, users);
 }
 
-/**
- * Resolve an Account from a session payload by searching both the
- * seeded `accounts` array and any user-created accounts in localStorage.
- */
-function resolveAccount(payload: SessionPayload): Account | null {
-  if (payload.source === "seed") {
-    const base = accounts.find((a) => a.email === payload.email) ?? null;
-    if (!base) return null;
-    // Apply any saved profile overrides
-    try {
-      const overrides = JSON.parse(window.localStorage.getItem("voxel_profile_overrides") || "{}");
-      const userOverrides = overrides[payload.email];
-      if (userOverrides) {
-        return { ...base, ...userOverrides };
-      }
-    } catch {
-      /* ignore */
-    }
-    return base;
-  }
-  return getSignupUsers().find((a) => a.email.toLowerCase() === payload.email.toLowerCase()) ?? null;
+/** Convert a Firestore UserProfile to the UI-facing Account shape. */
+function profileToAccount(p: UserProfile): Account {
+  return {
+    username: p.username,
+    name: p.name,
+    bio: p.bio,
+    avatar: p.avatar,
+    cover: p.cover,
+    followers: String(p.followers ?? 0),
+    following: String(p.following ?? 0),
+    posts_count: String(p.posts_count ?? 0),
+    verified: p.verified,
+    category: p.category,
+    country: p.country,
+    flag: p.flag,
+    isPrivate: p.isPrivate,
+    isSeller: p.isSeller,
+    posts: [],
+    email: p.email,
+    password: "", // never return or store plain password
+  };
+}
+
+/** Convert signup data to a localStorage Account (fallback path). */
+function signupDataToAccount(data: SignupData): Account {
+  return {
+    username: data.username.trim(),
+    name: data.name.trim(),
+    bio: data.bio ?? "",
+    avatar:
+      data.avatar?.trim() ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name.trim())}&background=6C2BD9&color=fff&size=200&bold=true`,
+    cover: "",
+    followers: "0",
+    following: "0",
+    posts_count: "0",
+    verified: false,
+    category: data.category ?? "",
+    country: data.country ?? "",
+    flag: data.flag ?? "",
+    isPrivate: false,
+    isSeller: false,
+    posts: [],
+    email: data.email.trim().toLowerCase(),
+    password: data.password,
+  };
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -145,43 +172,102 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<Account | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
-  /* Restore any saved session on mount. */
+  /* Restore Firebase session on mount. */
   useEffect(() => {
-    const payload = readJSON<SessionPayload>(SESSION_KEY);
-    if (payload) {
-      const restored = resolveAccount(payload);
-      if (restored) {
+    let unsub: (() => void) | null = null;
+
+    if (isFirebaseConfigured()) {
+      unsub = subscribeToAuth(async (firebaseUser) => {
+        if (firebaseUser) {
+          const profile = await loadUserProfile(firebaseUser.uid);
+          if (profile) {
+            setCurrentUser(profileToAccount(profile));
+          } else if (firebaseUser.email) {
+            // Auth exists but no profile — build a fallback local account
+            setCurrentUser({
+              username: firebaseUser.email.split("@")[0],
+              name: firebaseUser.displayName || firebaseUser.email.split("@")[0],
+              bio: "",
+              avatar:
+                firebaseUser.photoURL ||
+                `https://ui-avatars.com/api/?name=${encodeURIComponent("User")}&background=6C2BD9&color=fff&size=200&bold=true`,
+              cover: "",
+              followers: "0",
+              following: "0",
+              posts_count: "0",
+              verified: false,
+              category: "",
+              country: "",
+              flag: "",
+              isPrivate: false,
+              isSeller: false,
+              posts: [],
+              email: firebaseUser.email,
+              password: "",
+            });
+          }
+        }
+        setHydrated(true);
+      });
+    } else {
+      /* No Firebase — restore from localStorage session. */
+      const session = readJSON<{ email: string }>(SESSION_KEY);
+      if (session?.email) {
+        const restored = resolveLocalAccount(session.email);
         setCurrentUser(restored);
-      } else {
-        /* Stale session — clean it up. */
-        removeKey(SESSION_KEY);
       }
+      setHydrated(true);
     }
-    setHydrated(true);
+
+    return () => {
+      if (unsub) unsub();
+    };
   }, []);
 
-  /* Persist the current session whenever it changes (after hydration). */
+  /* Persist a local session marker whenever currentUser changes. */
   useEffect(() => {
     if (!hydrated) return;
     if (currentUser) {
-      const isSeed = accounts.some((a) => a.email === currentUser.email);
-      const payload: SessionPayload = {
-        email: currentUser.email,
-        source: isSeed ? "seed" : "signup",
-      };
-      writeJSON(SESSION_KEY, payload);
+      writeJSON(SESSION_KEY, { email: currentUser.email });
     } else {
       removeKey(SESSION_KEY);
     }
   }, [currentUser, hydrated]);
 
   /* ── login ──────────────────────────────────────────────── */
-  const login = (
+  const login = async (
     email: string,
     password: string,
-  ): { success: boolean; error?: string } => {
+  ): Promise<{ success: boolean; error?: string }> => {
     const normalized = email.trim().toLowerCase();
 
+    // Firebase path
+    if (isFirebaseConfigured()) {
+      const result = await loginUserAccount(normalized, password);
+      if ("error" in result) {
+        // Fall back to local seed accounts for demo/testing
+        const seedMatch = accounts.find(
+          (a) => a.email.toLowerCase() === normalized && a.password === password,
+        );
+        if (seedMatch) {
+          setCurrentUser(seedMatch);
+          return { success: true };
+        }
+        // Fall back to localStorage signup accounts
+        const localMatch = getSignupUsers().find(
+          (a) => a.email.toLowerCase() === normalized && a.password === password,
+        );
+        if (localMatch) {
+          setCurrentUser(localMatch);
+          return { success: true };
+        }
+        return { success: false, error: result.error };
+      }
+      setCurrentUser(profileToAccount(result.user));
+      return { success: true };
+    }
+
+    // No Firebase — local only
     const seedMatch = accounts.find(
       (a) => a.email.toLowerCase() === normalized && a.password === password,
     );
@@ -190,11 +276,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return { success: true };
     }
 
-    const signupMatch = getSignupUsers().find(
+    const localMatch = getSignupUsers().find(
       (a) => a.email.toLowerCase() === normalized && a.password === password,
     );
-    if (signupMatch) {
-      setCurrentUser(signupMatch);
+    if (localMatch) {
+      setCurrentUser(localMatch);
       return { success: true };
     }
 
@@ -203,16 +289,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   /* ── logout ─────────────────────────────────────────────── */
   const logout = (): void => {
+    import("firebase/auth")
+      .then(({ getAuth, signOut }) => {
+        const firebaseAuth = getAuth();
+        return signOut(firebaseAuth);
+      })
+      .catch(() => {});
     removeKey(SESSION_KEY);
     setCurrentUser(null);
   };
 
   /* ── signup ─────────────────────────────────────────────── */
-  const signup = (
+  const signup = async (
     data: SignupData,
-  ): { success: boolean; error?: string } => {
+  ): Promise<{ success: boolean; error?: string }> => {
     const normalized = data.email.trim().toLowerCase();
 
+    // Firebase path
+    if (isFirebaseConfigured()) {
+      const result = await createUserAccount({
+        ...data,
+        email: normalized,
+      });
+      if ("error" in result) {
+        return { success: false, error: result.error };
+      }
+      setCurrentUser(profileToAccount(result.user));
+      return { success: true };
+    }
+
+    // No Firebase — localStorage fallback
     const exists =
       accounts.some((a) => a.email.toLowerCase() === normalized) ||
       getSignupUsers().some((a) => a.email.toLowerCase() === normalized);
@@ -220,30 +326,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return { success: false, error: "An account with this email already exists." };
     }
 
-    const newAccount: Account = {
-      username: data.username.trim(),
-      name: data.name.trim(),
-      bio: data.bio ?? "",
-      avatar: data.avatar ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name.trim())}&background=6C2BD9&color=fff&size=200&bold=true`,
-      cover: "",
-      followers: "0",
-      following: "0",
-      posts_count: "0",
-      verified: false,
-      category: data.category ?? "",
-      country: data.country ?? "",
-      flag: data.flag ?? "",
-      isPrivate: false,
-      isSeller: false,
-      posts: [],
-      email: normalized,
-      password: data.password,
-    };
-
+    const newAccount = signupDataToAccount(data);
     const users = getSignupUsers();
     users.push(newAccount);
     setSignupUsers(users);
-
     setCurrentUser(newAccount);
     return { success: true };
   };
@@ -255,26 +341,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!currentUser) return;
     const updated = { ...currentUser, ...updates };
 
-    // If it's a seed account, persist overrides in localStorage
-    const isSeed = accounts.some((a) => a.email.toLowerCase() === currentUser.email.toLowerCase());
-    if (isSeed) {
-      const overridesKey = "voxel_profile_overrides";
-      try {
-        const overrides = JSON.parse(window.localStorage.getItem(overridesKey) || "{}");
-        overrides[currentUser.email] = { ...overrides[currentUser.email], ...updates };
-        window.localStorage.setItem(overridesKey, JSON.stringify(overrides));
-      } catch {
-        /* ignore */
-      }
-    } else {
-      // Update in the signup users list - preserve password!
-      const users = getSignupUsers();
-      const idx = users.findIndex((u) => u.email.toLowerCase() === currentUser.email.toLowerCase());
-      if (idx >= 0) {
-        // Merge with existing user to preserve fields like password
-        users[idx] = { ...users[idx], ...updates };
-        setSignupUsers(users);
-      }
+    if (isFirebaseConfigured()) {
+      // We need the Firebase uid to update the profile.
+      // Since the Account type doesn't store uid, we re-read the user doc by email
+      // by loading from Firestore. This is a best-effort update.
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      (async () => {
+        try {
+          const { getAuth } = await import("firebase/auth");
+          const firebaseAuth = getAuth();
+          const user = firebaseAuth.currentUser;
+          if (user) {
+            await updateUserProfile(user.uid, {
+              ...updates,
+              updatedAt: Date.now(),
+            });
+          }
+        } catch {
+          /* ignore */
+        }
+      })();
+    }
+
+    // Also update localStorage signup list if this is a local-only account
+    const users = getSignupUsers();
+    const idx = users.findIndex((u) => u.email.toLowerCase() === currentUser.email.toLowerCase());
+    if (idx >= 0) {
+      users[idx] = { ...users[idx], ...updates };
+      setSignupUsers(users);
     }
 
     setCurrentUser(updated);
@@ -297,14 +391,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   HOOK
-   ───────────────────────────────────────────────────────────── */
+/** Resolve a local account by email (seed or signup users). */
+function resolveLocalAccount(email: string): Account | null {
+  const normalized = email.toLowerCase();
+  const seed = accounts.find((a) => a.email.toLowerCase() === normalized);
+  if (seed) return seed;
+  return getSignupUsers().find((a) => a.email.toLowerCase() === normalized) ?? null;
+}
 
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (ctx === undefined) {
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
     throw new Error("useAuth must be used within an <AuthProvider>.");
   }
-  return ctx;
+  return context;
 }

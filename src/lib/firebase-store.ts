@@ -9,6 +9,7 @@
 import {
   collection,
   doc,
+  setDoc,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -23,7 +24,14 @@ import {
   serverTimestamp,
   type Unsubscribe,
 } from "firebase/firestore";
-import { db, isFirebaseConfigured, ensureAuth } from "./firebase";
+import { db, isFirebaseConfigured, ensureAuth, auth } from "./firebase";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  type User as FirebaseUser,
+  type UserCredential,
+} from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { storage } from "./firebase";
 import {
@@ -928,6 +936,180 @@ export async function getStreamById(streamId: string): Promise<LiveStream | null
     }
   }
   return localGetStreamById(streamId);
+}
+
+/* ─────────────── USERS / ACCOUNTS ─────────────── */
+
+export interface UserProfile {
+  uid: string;
+  username: string;
+  name: string;
+  email: string;
+  bio: string;
+  avatar: string;
+  cover: string;
+  followers: number;
+  following: number;
+  posts_count: number;
+  verified: boolean;
+  category: string;
+  country: string;
+  flag: string;
+  isPrivate: boolean;
+  isSeller: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+function accountToProfile(uid: string, data: Record<string, any>): UserProfile {
+  return {
+    uid,
+    username: (data.username as string) || "",
+    name: (data.name as string) || "",
+    email: (data.email as string) || "",
+    bio: (data.bio as string) || "",
+    avatar: (data.avatar as string) || "",
+    cover: (data.cover as string) || "",
+    followers: (data.followers as number) ?? 0,
+    following: (data.following as number) ?? 0,
+    posts_count: (data.posts_count as number) ?? 0,
+    verified: (data.verified as boolean) ?? false,
+    category: (data.category as string) || "",
+    country: (data.country as string) || "",
+    flag: (data.flag as string) || "",
+    isPrivate: (data.isPrivate as boolean) ?? false,
+    isSeller: (data.isSeller as boolean) ?? false,
+    createdAt: data.createdAt?.toMillis?.() || data.createdAt || 0,
+    updatedAt: data.updatedAt?.toMillis?.() || data.updatedAt || 0,
+  };
+}
+
+export async function createUserAccount(data: {
+  username: string;
+  name: string;
+  email: string;
+  password: string;
+  bio?: string;
+  avatar?: string;
+  category?: string;
+  country?: string;
+  flag?: string;
+}): Promise<{ user: UserProfile; credential: UserCredential } | { error: string }> {
+  if (!USE_FIREBASE || !auth || !db) {
+    return { error: "Firebase not configured" };
+  }
+  try {
+    const credential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+    const now = Date.now();
+    const profile: Omit<UserProfile, "uid"> & { uid?: string } = {
+      username: data.username.trim(),
+      name: data.name.trim(),
+      email: data.email.toLowerCase().trim(),
+      bio: data.bio?.trim() || "",
+      avatar:
+        data.avatar?.trim() ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name.trim())}&background=6C2BD9&color=fff&size=200&bold=true`,
+      cover: "",
+      followers: 0,
+      following: 0,
+      posts_count: 0,
+      verified: false,
+      category: data.category?.trim() || "",
+      country: data.country?.trim() || "",
+      flag: data.flag?.trim() || "",
+      isPrivate: false,
+      isSeller: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await setDoc(doc(db, "users", credential.user.uid), {
+      ...profile,
+      uid: credential.user.uid,
+    });
+    return { user: { ...profile, uid: credential.user.uid }, credential };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("auth/email-already-in-use")) return { error: "An account with this email already exists." };
+    if (message.includes("auth/weak-password")) return { error: "Password is too weak." };
+    console.error("Firebase create user error:", err);
+    return { error: "Failed to create account. Please try again." };
+  }
+}
+
+export async function loginUserAccount(email: string, password: string): Promise<{ user: UserProfile; credential: UserCredential } | { error: string }> {
+  if (!USE_FIREBASE || !auth || !db) {
+    return { error: "Firebase not configured" };
+  }
+  try {
+    const credential = await signInWithEmailAndPassword(auth, email, password);
+    const userDoc = await getDoc(doc(db, "users", credential.user.uid));
+    if (userDoc.exists()) {
+      return { user: accountToProfile(credential.user.uid, userDoc.data() as Record<string, any>), credential };
+    }
+    // Auth exists but no profile yet — create a minimal one
+    const now = Date.now();
+    const fallback: UserProfile = {
+      uid: credential.user.uid,
+      username: credential.user.email?.split("@")[0] || "user",
+      name: credential.user.displayName || "User",
+      email: credential.user.email || email,
+      bio: "",
+      avatar: credential.user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent("User")}&background=6C2BD9&color=fff&size=200&bold=true`,
+      cover: "",
+      followers: 0,
+      following: 0,
+      posts_count: 0,
+      verified: false,
+      category: "",
+      country: "",
+      flag: "",
+      isPrivate: false,
+      isSeller: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await setDoc(doc(db, "users", credential.user.uid), fallback);
+    return { user: fallback, credential };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("auth/invalid-credential") || message.includes("auth/wrong-password") || message.includes("auth/user-not-found")) {
+      return { error: "Invalid email or password." };
+    }
+    console.error("Firebase login error:", err);
+    return { error: "Login failed. Please try again." };
+  }
+}
+
+export async function loadUserProfile(uid: string): Promise<UserProfile | null> {
+  if (!USE_FIREBASE || !db) return null;
+  try {
+    const userDoc = await getDoc(doc(db, "users", uid));
+    if (userDoc.exists()) return accountToProfile(uid, userDoc.data() as Record<string, any>);
+    return null;
+  } catch (err) {
+    console.error("Firebase load user profile error:", err);
+    return null;
+  }
+}
+
+export async function updateUserProfile(uid: string, updates: Partial<Omit<UserProfile, "uid" | "email" | "createdAt">>): Promise<void> {
+  if (!USE_FIREBASE || !db) return;
+  try {
+    await updateDoc(doc(db, "users", uid), {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error("Firebase update user profile error:", err);
+  }
+}
+
+export function subscribeToAuth(callback: (user: FirebaseUser | null) => void): () => void {
+  if (!auth) {
+    callback(null);
+    return () => {};
+  }
+  return onAuthStateChanged(auth, callback);
 }
 
 /* ─────────────── HELPERS ─────────────── */
