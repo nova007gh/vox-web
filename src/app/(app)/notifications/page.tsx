@@ -147,7 +147,7 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="relative h-full overflow-y-auto overflow-x-hidden scrollbar-hide pb-20 lg:pb-0" style={{ paddingBottom: "calc(5rem + var(--safe-bottom, 0px))" }}>
+    <div className="relative min-h-full overflow-x-hidden scrollbar-hide pb-24 lg:pb-0" style={{ paddingBottom: "calc(6rem + var(--safe-bottom, 0px))" }}>
       {/* ═══════ HEADER ═══════ */}
       <motion.div
         initial={{ opacity: 0 }}

@@ -240,7 +240,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* ═══════ MAIN CONTENT ═══════ */}
-      <main className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? "lg:ml-[72px]" : "lg:ml-[240px]"} pb-20 lg:pb-0 overflow-hidden`} style={{ paddingBottom: "calc(5rem + var(--safe-bottom, 0px))" }}>
+      <main className={`flex-1 transition-all duration-300 ${sidebarCollapsed ? "lg:ml-[72px]" : "lg:ml-[240px]"} lg:pb-0 overflow-hidden`}>
         <div className="h-full overflow-y-auto -webkit-overflow-scrolling-touch page-enter" key={pathname}>
           {children}
         </div>

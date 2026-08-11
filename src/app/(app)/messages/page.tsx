@@ -655,7 +655,7 @@ export default function MessagesPage() {
 
   /* ─────────────────────── RENDER ─────────────────────── */
   return (
-    <div className="flex h-screen pb-20 lg:pb-0" style={{ paddingBottom: "calc(5rem + var(--safe-bottom, 0px))" }}>
+    <div className="flex h-screen pb-24 lg:pb-0" style={{ paddingBottom: "calc(6rem + var(--safe-bottom, 0px))" }}>
       {/* ═══════════════════ LEFT PANEL - CHAT LIST ═══════════════════ */}
       <aside
         className={`w-full lg:w-80 flex-shrink-0 lg:border-r lg:border-white/[0.06] flex flex-col bg-vox-bg ${

@@ -2115,7 +2115,7 @@ export default function LivePage() {
   }
 
   return (
-    <div className="relative h-full overflow-y-auto overflow-x-hidden scrollbar-hide pb-20 lg:pb-0" style={{ paddingBottom: "calc(5rem + var(--safe-bottom, 0px))" }}>
+    <div className="relative min-h-full overflow-x-hidden scrollbar-hide pb-24 lg:pb-0" style={{ paddingBottom: "calc(6rem + var(--safe-bottom, 0px))" }}>
       {/* ═══════ HEADER ═══════ */}
       <div
         className="sticky top-0 z-50 glass-strong backdrop-blur-xl px-4 py-3 flex items-center justify-between"
