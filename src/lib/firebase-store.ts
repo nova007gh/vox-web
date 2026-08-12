@@ -868,27 +868,31 @@ export async function endLiveStream(streamId: string): Promise<void> {
 export function subscribeToActiveStreams(callback: (streams: LiveStream[]) => void): Unsubscribe | (() => void) {
   if (USE_FIREBASE && db) {
     try {
+      // Single where clause to avoid composite index requirement.
+      // Filter the 4-hour cutoff client-side.
       const cutoff = Date.now() - 4 * 60 * 60 * 1000;
       const q = query(
         collection(db, "liveStreams"),
         where("active", "==", true),
-        where("startedAt", ">", cutoff),
       );
       return onSnapshot(q, (snapshot) => {
         const streams: LiveStream[] = [];
         snapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          streams.push({
-            id: docSnap.id,
-            hostUsername: data.hostUsername,
-            hostName: data.hostName,
-            hostAvatar: data.hostAvatar,
-            title: data.title,
-            category: data.category,
-            startedAt: data.startedAt?.toMillis?.() || data.startedAt || 0,
-            viewers: data.viewers || 0,
-            active: data.active ?? true,
-          });
+          const data = docSnap.data() as Record<string, any>;
+          const startedAt = data.startedAt?.toMillis?.() || data.startedAt || 0;
+          if (startedAt > cutoff) {
+            streams.push({
+              id: docSnap.id,
+              hostUsername: data.hostUsername,
+              hostName: data.hostName,
+              hostAvatar: data.hostAvatar,
+              title: data.title,
+              category: data.category,
+              startedAt,
+              viewers: data.viewers || 0,
+              active: data.active ?? true,
+            });
+          }
         });
         // Sort by viewers desc
         callback(streams.sort((a, b) => b.viewers - a.viewers));
