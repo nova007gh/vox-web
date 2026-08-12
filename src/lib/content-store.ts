@@ -658,6 +658,8 @@ export function getStreamById(streamId: string): LiveStream | null {
 export interface LiveProduct {
   id: string;
   streamId: string;
+  sellerUsername: string;
+  sellerName: string;
   name: string;
   price: number;
   currency: string;
@@ -702,6 +704,8 @@ export function markProductSold(productId: string): void {
 export interface LiveAuction {
   id: string;
   streamId: string;
+  sellerUsername: string;
+  sellerName: string;
   itemName: string;
   image: string;
   description: string;
@@ -759,7 +763,7 @@ export function placeBid(auctionId: string, bidderName: string, amount: number):
 
 /* ─────────────── SEED DEMO DATA ─────────────── */
 
-const SEED_KEY = "voxel_live_seeded_v2";
+const SEED_KEY = "voxel_live_seeded_v3";
 
 export function seedLiveDemoData(): void {
   if (typeof window === "undefined") return;
@@ -778,15 +782,15 @@ export function seedLiveDemoData(): void {
   window.localStorage.setItem(LIVE_KEY, JSON.stringify(demoStreams));
 
   const demoProducts: LiveProduct[] = [
-    { id: `prod_demo_1`, streamId: "live_demo_2", name: "Silk Press Straight", price: 4200, currency: "GHS", image: "https://images.unsplash.com/photo-1522337360788-8b13dee7b37e?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Premium silk press wig, 18 inches", sold: false },
-    { id: `prod_demo_2`, streamId: "live_demo_2", name: "Ombre Color Masterpiece", price: 8300, currency: "GHS", image: "https://images.unsplash.com/photo-1605497788044-5a32c70ecbc7?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Ombre colored lace front wig", sold: false },
-    { id: `prod_demo_3`, streamId: "live_demo_2", name: "Curly Goddess Curls", price: 2500, currency: "GHS", image: "https://images.unsplash.com/photo-1554466231-296474d5b1c9?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Curly goddess wig, natural texture", sold: false },
+    { id: `prod_demo_1`, streamId: "live_demo_2", sellerUsername: "just_wearwigs", sellerName: "JUST WEAR WIGS", name: "Silk Press Straight", price: 4200, currency: "GHS", image: "https://images.unsplash.com/photo-1522337360788-8b13dee7b37e?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Premium silk press wig, 18 inches", sold: false },
+    { id: `prod_demo_2`, streamId: "live_demo_2", sellerUsername: "just_wearwigs", sellerName: "JUST WEAR WIGS", name: "Ombre Color Masterpiece", price: 8300, currency: "GHS", image: "https://images.unsplash.com/photo-1605497788044-5a32c70ecbc7?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Ombre colored lace front wig", sold: false },
+    { id: `prod_demo_3`, streamId: "live_demo_2", sellerUsername: "just_wearwigs", sellerName: "JUST WEAR WIGS", name: "Curly Goddess Curls", price: 2500, currency: "GHS", image: "https://images.unsplash.com/photo-1554466231-296474d5b1c9?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Curly goddess wig, natural texture", sold: false },
   ];
   window.localStorage.setItem(LIVE_PRODUCTS_KEY, JSON.stringify(demoProducts));
 
   const demoAuctions: LiveAuction[] = [
-    { id: `auction_demo_1`, streamId: "live_demo_2", itemName: "Ombre Color Masterpiece - Custom", image: "https://images.unsplash.com/photo-1605497788044-5a32c70ecbc7?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Custom ombre lace front, any length", startingBid: 5000, currentBid: 8300, currency: "GHS", bids: 23, highestBidder: "AmaFan123", endsAt: now + 154000, active: true },
-    { id: `auction_demo_2`, streamId: "live_demo_2", itemName: "Ocean Wave Goddess - Premium", image: "https://images.unsplash.com/photo-1499209974431-9fccce79dc47?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Premium ocean wave wig, 22 inches", startingBid: 6000, currentBid: 8500, currency: "GHS", bids: 41, highestBidder: "EsiLovesHair", endsAt: now + 312000, active: true },
+    { id: `auction_demo_1`, streamId: "live_demo_2", sellerUsername: "just_wearwigs", sellerName: "JUST WEAR WIGS", itemName: "Ombre Color Masterpiece - Custom", image: "https://images.unsplash.com/photo-1605497788044-5a32c70ecbc7?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Custom ombre lace front, any length", startingBid: 5000, currentBid: 8300, currency: "GHS", bids: 23, highestBidder: "AmaFan123", endsAt: now + 154000, active: true },
+    { id: `auction_demo_2`, streamId: "live_demo_2", sellerUsername: "just_wearwigs", sellerName: "JUST WEAR WIGS", itemName: "Ocean Wave Goddess - Premium", image: "https://images.unsplash.com/photo-1499209974431-9fccce79dc47?fm=jpg&q=60&w=400&h=400&auto=format&fit=crop", description: "Premium ocean wave wig, 22 inches", startingBid: 6000, currentBid: 8500, currency: "GHS", bids: 41, highestBidder: "EsiLovesHair", endsAt: now + 312000, active: true },
   ];
   window.localStorage.setItem(LIVE_AUCTIONS_KEY, JSON.stringify(demoAuctions));
 
