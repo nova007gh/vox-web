@@ -45,10 +45,11 @@ import {
   incrementStreamViewers,
   getStreamById,
   subscribeToActiveStreams,
+  getFollowers,
+  addNotification,
   type LiveStream,
 } from "@/lib/firebase-store";
 import {
-  addNotification,
   seedLiveDemoData,
   getLiveProducts,
   markProductSold,
@@ -2091,20 +2092,17 @@ export default function LivePage() {
     setHostMediaStream(mediaStream);
     setHostStream(stream);
     setShowGoLiveModal(false);
-    const followsByUser = typeof window !== "undefined"
-      ? JSON.parse(window.localStorage.getItem("voxel_follows_by_user") || "{}")
-      : {};
-    for (const u in followsByUser) {
-      if (followsByUser[u].includes(currentUser.username)) {
-        addNotification(u, {
-          type: "live",
-          fromUsername: currentUser.username,
-          fromName: currentUser.name,
-          fromAvatar: currentUser.avatar || "",
-          message: "is now live!",
-          detail: title,
-        });
-      }
+    const followers = await getFollowers(currentUser.username);
+    for (const u of followers) {
+      if (u === currentUser.username) continue;
+      addNotification(u, {
+        type: "live",
+        fromUsername: currentUser.username,
+        fromName: currentUser.name,
+        fromAvatar: currentUser.avatar || "",
+        message: "is now live!",
+        detail: title,
+      });
     }
   };
 

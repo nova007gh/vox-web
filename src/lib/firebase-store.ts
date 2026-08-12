@@ -1144,7 +1144,9 @@ export async function searchUsers(term: string): Promise<UserProfile[]> {
     console.error("Firebase searchUsers error:", err);
     return [];
   }
-}export async function updateUserProfile(uid: string, updates: Partial<Omit<UserProfile, "uid" | "email" | "createdAt">>): Promise<void> {
+}
+
+export async function updateUserProfile(uid: string, updates: Partial<Omit<UserProfile, "uid" | "email" | "createdAt">>): Promise<void> {
   if (!USE_FIREBASE || !db) return;
   try {
     await updateDoc(doc(db, "users", uid), {
@@ -1153,6 +1155,147 @@ export async function searchUsers(term: string): Promise<UserProfile[]> {
     });
   } catch (err) {
     console.error("Firebase update user profile error:", err);
+  }
+}
+
+/* ─────────────── FOLLOWS (cross-device) ─────────────── */
+
+/** Toggle follow status in Firestore. Returns the new followed state. */
+export async function toggleFollow(currentUsername: string, targetUsername: string): Promise<boolean> {
+  if (!USE_FIREBASE || !db) return false;
+  try {
+    const followId = `${currentUsername.trim()}_${targetUsername.trim()}`;
+    const followRef = doc(db, "follows", followId);
+    const snap = await getDoc(followRef);
+    if (snap.exists()) {
+      await deleteDoc(followRef);
+      return false;
+    }
+    await setDoc(followRef, {
+      follower: currentUsername.trim(),
+      following: targetUsername.trim(),
+      createdAt: serverTimestamp(),
+    });
+    return true;
+  } catch (err) {
+    console.error("Firebase toggleFollow error:", err);
+    return false;
+  }
+}
+
+/** Check if current user follows target in Firestore. */
+export async function isFollowing(currentUsername: string, targetUsername: string): Promise<boolean> {
+  if (!USE_FIREBASE || !db) return false;
+  try {
+    const followId = `${currentUsername.trim()}_${targetUsername.trim()}`;
+    const snap = await getDoc(doc(db, "follows", followId));
+    return snap.exists();
+  } catch (err) {
+    console.error("Firebase isFollowing error:", err);
+    return false;
+  }
+}
+
+/** Get the list of usernames a user is following. */
+export async function getFollowing(currentUsername: string): Promise<string[]> {
+  if (!USE_FIREBASE || !db) return [];
+  try {
+    const q = query(collection(db, "follows"), where("follower", "==", currentUsername.trim()));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => d.data().following as string);
+  } catch (err) {
+    console.error("Firebase getFollowing error:", err);
+    return [];
+  }
+}
+
+/** Get the list of usernames following a target user. */
+export async function getFollowers(targetUsername: string): Promise<string[]> {
+  if (!USE_FIREBASE || !db) return [];
+  try {
+    const q = query(collection(db, "follows"), where("following", "==", targetUsername.trim()));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => d.data().follower as string);
+  } catch (err) {
+    console.error("Firebase getFollowers error:", err);
+    return [];
+  }
+}
+
+/* ─────────────── NOTIFICATIONS (cross-device) ─────────────── */
+
+export interface VoxNotification {
+  id?: string;
+  type: "follow" | "like" | "comment" | "live" | "message" | "gift" | "purchase";
+  fromUsername: string;
+  fromName: string;
+  fromAvatar: string;
+  toUsername: string;
+  message: string;
+  detail?: string;
+  read: boolean;
+  createdAt: number;
+}
+
+/** Add a notification document to Firestore. */
+export async function addNotification(toUsername: string, data: Omit<VoxNotification, "id" | "toUsername" | "read" | "createdAt">): Promise<void> {
+  if (!USE_FIREBASE || !db) return;
+  try {
+    await addDoc(collection(db, "notifications"), {
+      ...data,
+      toUsername,
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error("Firebase addNotification error:", err);
+  }
+}
+
+/** Subscribe to a user's unread notifications. */
+export function subscribeToNotifications(
+  username: string,
+  callback: (notifications: VoxNotification[]) => void,
+): Unsubscribe | (() => void) {
+  if (!USE_FIREBASE || !db) return () => {};
+  try {
+    const q = query(collection(db, "notifications"), where("toUsername", "==", username.trim()));
+    return onSnapshot(q, (snapshot) => {
+      const notifications: VoxNotification[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as Record<string, any>;
+        if (data.read === false) {
+          notifications.push({
+            id: docSnap.id,
+            type: data.type,
+            fromUsername: data.fromUsername,
+            fromName: data.fromName,
+            fromAvatar: data.fromAvatar,
+            toUsername: data.toUsername,
+            message: data.message,
+            detail: data.detail,
+            read: data.read,
+            createdAt: data.createdAt?.toMillis?.() || data.createdAt || 0,
+          });
+        }
+      });
+      callback(notifications.sort((a, b) => b.createdAt - a.createdAt));
+    }, (error) => {
+      console.error("Firebase subscribeToNotifications error:", error);
+    });
+  } catch (err) {
+    console.error("Firebase subscribeToNotifications setup error:", err);
+    return () => {};
+  }
+}
+
+/** Mark a notification as read. */
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  if (!USE_FIREBASE || !db) return;
+  try {
+    await updateDoc(doc(db, "notifications", notificationId), { read: true });
+  } catch (err) {
+    console.error("Firebase markNotificationRead error:", err);
   }
 }
 

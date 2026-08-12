@@ -17,22 +17,24 @@ import { getAccount, profileToAccount, type Account } from "../../../../lib/acco
 import UserPostsGrid from "../UserPostsGrid";
 import { useAuth } from "@/lib/auth-context";
 import {
-  getFollowing,
-  toggleFollow,
-  isFollowing,
   getUserPosts,
   formatCount,
-  addNotification,
   type Post,
 } from "@/lib/content-store";
-import { subscribeToUserPosts, getUserByUsername } from "@/lib/firebase-store";
+import {
+  subscribeToUserPosts,
+  getUserByUsername,
+  getFollowing as getFollowingFS,
+  getFollowers as getFollowersFS,
+  toggleFollow as toggleFollowFS,
+  isFollowing as isFollowingFS,
+  addNotification as addNotificationFS,
+} from "@/lib/firebase-store";
 
 /* ─────────────── Page Props ─────────────── */
 interface ProfileViewProps {
   username: string;
 }
-
-const FOLLOWS_BY_USER_KEY = "voxel_follows_by_user";
 
 /* ─────────────── Page ─────────────── */
 export default function ProfileView({ username }: ProfileViewProps) {
@@ -54,63 +56,18 @@ export default function ProfileView({ username }: ProfileViewProps) {
     return () => { cancelled = true; };
   }, [username]);
 
-  /* ── Per-user follow helpers ── */
-  function readFollowsByUser(): Record<string, string[]> {
-    if (typeof window === "undefined") return {};
-    try {
-      const raw = window.localStorage.getItem(FOLLOWS_BY_USER_KEY);
-      return raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
-    } catch {
-      return {};
-    }
-  }
+  /* ── Follow state from Firestore (cross-device) ── */
+  const [following, setFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
 
-  function writeFollowsByUser(map: Record<string, string[]>): void {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(FOLLOWS_BY_USER_KEY, JSON.stringify(map));
-    } catch {
-      /* ignore */
-    }
-  }
-
-  function getUserFollowingList(target: string): string[] {
-    const all = readFollowsByUser();
-    if (all[target]) return all[target];
-    if (currentUser?.username === target) return getFollowing();
-    return [];
-  }
-
-  function getIsFollowing(current: string, target: string): boolean {
-    return getUserFollowingList(current).includes(target);
-  }
-
-  function getFollowersCount(target: string): number {
-    const all = readFollowsByUser();
-    let count = 0;
-    for (const user in all) {
-      if (all[user].includes(target)) count++;
-    }
-    if (currentUser && !all[currentUser.username] && getFollowing().includes(target)) {
-      count++;
-    }
-    return count;
-  }
-
-  function getFollowingCount(target: string): number {
-    return getUserFollowingList(target).length;
-  }
+  const isOwnProfile = currentUser?.username === username;
 
   /* ── State ── */
   const [showMenu, setShowMenu] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [posts, setPosts] = useState<Post[]>(() => getUserPosts(username));
   const [postCount, setPostCount] = useState(posts.length);
-  const [following, setFollowing] = useState(() => isFollowing(username));
-  const [followersCount, setFollowersCount] = useState(() => getFollowersCount(username));
-  const [followingCount, setFollowingCount] = useState(() => getFollowingCount(username));
-
-  const isOwnProfile = currentUser?.username === username;
 
   /* ── Effects ── */
   useEffect(() => {
@@ -127,13 +84,21 @@ export default function ProfileView({ username }: ProfileViewProps) {
   }, [posts]);
 
   useEffect(() => {
-    setFollowing(
-      currentUser ? getIsFollowing(currentUser.username, username) : isFollowing(username)
-    );
-    setFollowersCount(getFollowersCount(username));
-    setFollowingCount(getFollowingCount(username));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [username, currentUser]);
+    if (!account) return;
+    let cancelled = false;
+    (async () => {
+      const [fsFollowers, fsFollowing, fsIsFollowing] = await Promise.all([
+        getFollowersFS(username),
+        getFollowingFS(username),
+        currentUser ? isFollowingFS(currentUser.username, username) : false,
+      ]);
+      if (cancelled) return;
+      setFollowersCount(fsFollowers.length);
+      setFollowingCount(fsFollowing.length);
+      setFollowing(fsIsFollowing);
+    })();
+    return () => { cancelled = true; };
+  }, [username, currentUser, account]);
 
   /* ── Helpers ── */
   const showToast = (msg: string) => {
@@ -156,34 +121,17 @@ export default function ProfileView({ username }: ProfileViewProps) {
     }
   };
 
-  const handleFollow = () => {
-    if (!currentUser || isOwnProfile) return;
-
-    const newState = toggleFollow(username);
-    const all = readFollowsByUser();
-    const list = all[currentUser.username]
-      ? [...all[currentUser.username]]
-      : [...getFollowing()];
-
-    if (newState) {
-      if (!list.includes(username)) list.push(username);
-    } else {
-      const idx = list.indexOf(username);
-      if (idx >= 0) list.splice(idx, 1);
-    }
-
-    all[currentUser.username] = list;
-    writeFollowsByUser(all);
-
+  const handleFollow = async () => {
+    if (!currentUser || isOwnProfile || !account) return;
+    const newState = await toggleFollowFS(currentUser.username, username);
     setFollowing(newState);
-    setFollowersCount(getFollowersCount(username));
-    setFollowingCount(getFollowingCount(username));
+    setFollowersCount((prev) => (newState ? prev + 1 : Math.max(0, prev - 1)));
+    setFollowingCount(await getFollowingFS(currentUser.username).then((f) => f.length));
     showToast(
-      newState ? `Now following ${account?.name}` : `Unfollowed ${account?.name}`
+      newState ? `Now following ${account.name}` : `Unfollowed ${account.name}`
     );
-    // Send follow notification
-    if (newState && currentUser) {
-      addNotification(username, {
+    if (newState) {
+      addNotificationFS(username, {
         type: "follow",
         fromUsername: currentUser.username,
         fromName: currentUser.name,
