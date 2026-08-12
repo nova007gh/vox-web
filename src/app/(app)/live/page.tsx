@@ -2476,7 +2476,7 @@ export default function LivePage() {
                   </div>
                   <div className="p-2.5">
                     <p className="text-xs font-semibold text-white truncate">{p.name}</p>
-                    <p className="text-[10px] text-vox-muted truncate">by {stream?.hostName || p.sellerName || "Unknown"}</p>
+                    <p className="text-[10px] text-vox-muted truncate">by {stream?.hostName || p.sellerName || p.sellerUsername || "Unknown"}</p>
                     <div className="flex items-center justify-between mt-1.5">
                       <span className="text-sm font-bold text-vox-pink">{formatPrice(p.price, p.currency)}</span>
                     </div>
@@ -2523,7 +2523,7 @@ export default function LivePage() {
                   </div>
                   <div className="p-2.5">
                     <p className="text-xs font-semibold text-white truncate">{a.itemName}</p>
-                    <p className="text-[10px] text-vox-muted truncate">by {stream?.hostName || a.sellerName || "Unknown"}</p>
+                    <p className="text-[10px] text-vox-muted truncate">by {stream?.hostName || a.sellerName || a.sellerUsername || "Unknown"}</p>
                     <div className="flex items-center justify-between mt-1.5">
                       <div>
                         <p className="text-[9px] text-vox-muted">Current Bid</p>

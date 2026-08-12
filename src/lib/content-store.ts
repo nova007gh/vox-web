@@ -763,7 +763,7 @@ export function placeBid(auctionId: string, bidderName: string, amount: number):
 
 /* ─────────────── SEED DEMO DATA ─────────────── */
 
-const SEED_KEY = "voxel_live_seeded_v3";
+const SEED_KEY = "voxel_live_seeded_v4";
 
 export function seedLiveDemoData(): void {
   if (typeof window === "undefined") return;
