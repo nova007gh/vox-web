@@ -1117,7 +1117,34 @@ export async function loadUserProfile(uid: string): Promise<UserProfile | null> 
   }
 }
 
-export async function updateUserProfile(uid: string, updates: Partial<Omit<UserProfile, "uid" | "email" | "createdAt">>): Promise<void> {
+/** Look up a user profile by username (cross-device) */
+export async function getUserByUsername(username: string): Promise<UserProfile | null> {
+  if (!USE_FIREBASE || !db) return null;
+  try {
+    const q = query(collection(db, "users"), where("username", "==", username.trim()));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const docSnap = snap.docs[0];
+    return accountToProfile(docSnap.id, docSnap.data() as Record<string, any>);
+  } catch (err) {
+    console.error("Firebase getUserByUsername error:", err);
+    return null;
+  }
+}
+
+/** Search user profiles by username or name prefix */
+export async function searchUsers(term: string): Promise<UserProfile[]> {
+  if (!USE_FIREBASE || !db || !term.trim()) return [];
+  try {
+    const lower = term.toLowerCase().trim();
+    const q = query(collection(db, "users"), where("username", ">=", lower), where("username", "<=", lower + "\uf8ff"));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => accountToProfile(d.id, d.data() as Record<string, any>));
+  } catch (err) {
+    console.error("Firebase searchUsers error:", err);
+    return [];
+  }
+}export async function updateUserProfile(uid: string, updates: Partial<Omit<UserProfile, "uid" | "email" | "createdAt">>): Promise<void> {
   if (!USE_FIREBASE || !db) return;
   try {
     await updateDoc(doc(db, "users", uid), {

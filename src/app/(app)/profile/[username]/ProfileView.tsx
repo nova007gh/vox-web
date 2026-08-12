@@ -13,7 +13,7 @@ import {
   Grid3x3,
   Globe,
 } from "lucide-react";
-import { getAccount } from "../../../../lib/accounts";
+import { getAccount, profileToAccount, type Account } from "../../../../lib/accounts";
 import UserPostsGrid from "../UserPostsGrid";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -25,7 +25,7 @@ import {
   addNotification,
   type Post,
 } from "@/lib/content-store";
-import { subscribeToUserPosts } from "@/lib/firebase-store";
+import { subscribeToUserPosts, getUserByUsername } from "@/lib/firebase-store";
 
 /* ─────────────── Page Props ─────────────── */
 interface ProfileViewProps {
@@ -38,7 +38,21 @@ const FOLLOWS_BY_USER_KEY = "voxel_follows_by_user";
 export default function ProfileView({ username }: ProfileViewProps) {
   const router = useRouter();
   const { currentUser } = useAuth();
-  const account = getAccount(username);
+  const [account, setAccount] = useState<Account | null>(getAccount(username) || null);
+  const [loadingAccount, setLoadingAccount] = useState(true);
+
+  /* ── Load account from Firebase (cross-device) ── */
+  useEffect(() => {
+    let cancelled = false;
+    const local = getAccount(username);
+    if (local) setAccount(local);
+    getUserByUsername(username).then((profile) => {
+      if (cancelled) return;
+      if (profile) setAccount(profileToAccount(profile));
+      setLoadingAccount(false);
+    });
+    return () => { cancelled = true; };
+  }, [username]);
 
   /* ── Per-user follow helpers ── */
   function readFollowsByUser(): Record<string, string[]> {
@@ -187,6 +201,15 @@ export default function ProfileView({ username }: ProfileViewProps) {
   };
 
   /* ── Not Found ── */
+  if (loadingAccount) {
+    return (
+      <div className="min-h-screen vox-bg flex flex-col items-center justify-center px-6 text-center">
+        <div className="w-10 h-10 border-4 border-vox-purple/30 border-t-vox-purple rounded-full animate-spin" />
+        <p className="text-vox-muted mt-4">Loading profile...</p>
+      </div>
+    );
+  }
+
   if (!account) {
     return (
       <div className="min-h-screen vox-bg flex flex-col items-center justify-center px-6 text-center">

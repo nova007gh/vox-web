@@ -4,6 +4,8 @@
    Each account is independent with its own profile, posts, and content
    ───────────────────────────────────────────────────────────── */
 
+import { type UserProfile } from "./firebase-store";
+
 export interface AccountPost {
   id: number;
   caption: string;
@@ -50,6 +52,29 @@ export function getAccount(username: string): Account | undefined {
   } catch {
     return undefined;
   }
+}
+
+/* Helper: convert a Firebase UserProfile to an Account object */
+export function profileToAccount(p: UserProfile): Account {
+  return {
+    username: p.username,
+    name: p.name,
+    bio: p.bio,
+    avatar: p.avatar,
+    cover: p.cover,
+    followers: String(p.followers ?? 0),
+    following: String(p.following ?? 0),
+    posts_count: String(p.posts_count ?? 0),
+    verified: p.verified,
+    category: p.category,
+    country: p.country,
+    flag: p.flag,
+    isPrivate: p.isPrivate,
+    isSeller: p.isSeller,
+    posts: [],
+    email: p.email,
+    password: "",
+  };
 }
 
 /* Helper: get all usernames (for static params) */
