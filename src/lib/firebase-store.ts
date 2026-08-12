@@ -77,6 +77,10 @@ export async function createPost(data: {
   allowDownload: boolean;
   allowComments: boolean;
   allowDuet: boolean;
+  likes?: number;
+  views?: number;
+  shares?: number;
+  saves?: number;
 }): Promise<Post> {
   const post: Omit<Post, "id"> = {
     authorUsername: data.authorUsername,
@@ -92,11 +96,11 @@ export async function createPost(data: {
     allowComments: data.allowComments,
     allowDuet: data.allowDuet,
     createdAt: Date.now(),
-    likes: 0,
+    likes: data.likes ?? 0,
     comments: [],
-    saves: 0,
-    shares: 0,
-    views: 0,
+    saves: data.saves ?? 0,
+    shares: data.shares ?? 0,
+    views: data.views ?? 0,
     likedByMe: false,
     savedByMe: false,
   };

@@ -1547,6 +1547,7 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
           const url = URL.createObjectURL(blob);
           setRecordingBlobUrl(url);
           setRecordingAvailable(true);
+          saveStreamToFeed(blob);
         }
       };
       recorder.stop();
@@ -1578,11 +1579,10 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
     document.body.removeChild(a);
   };
 
-  const handleSaveStreamToFeed = async () => {
-    if (!currentUser || !recordingBlobUrl || isSavingStream || streamSaved) return;
+  const saveStreamToFeed = async (blob: Blob) => {
+    if (!currentUser || isSavingStream || streamSaved) return;
     setIsSavingStream(true);
     try {
-      const blob = await fetch(recordingBlobUrl).then((r) => r.blob());
       const { url, id } = await uploadFile(blob, `livestream_${stream.id}`);
       await createPost({
         authorUsername: currentUser.username,
@@ -1597,6 +1597,10 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
         allowDownload: true,
         allowComments: true,
         allowDuet: false,
+        likes,
+        views: peakViewers,
+        shares: 0,
+        saves: 0,
       });
       setStreamSaved(true);
     } catch (err) {
@@ -1604,6 +1608,12 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
     } finally {
       setIsSavingStream(false);
     }
+  };
+
+  const handleSaveStreamToFeed = async () => {
+    if (!recordingBlobUrl) return;
+    const blob = await fetch(recordingBlobUrl).then((r) => r.blob());
+    await saveStreamToFeed(blob);
   };
 
   const handleSendComment = () => {

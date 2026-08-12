@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import FeedPosts from "../FeedPosts";
+import { subscribeToActiveStreams, type LiveStream } from "@/lib/firebase-store";
+import { useAuth } from "@/lib/auth-context";
 import {
   Search,
   SlidersHorizontal,
@@ -25,6 +27,7 @@ import {
   SearchX,
   RotateCcw,
   Check,
+  Radio,
 } from "lucide-react";
 
 /* ─────────────────────────── DATA ─────────────────────────── */
@@ -118,6 +121,7 @@ function SectionHeader({
 
 export default function ExplorePage() {
   const router = useRouter();
+  const { currentUser, hydrated } = useAuth();
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [followedCreators, setFollowedCreators] = useState<string[]>([]);
@@ -126,6 +130,14 @@ export default function ExplorePage() {
   const [playingSound, setPlayingSound] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"trending" | "views" | "recent" | "likes">("trending");
   const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "all">("all");
+  const [liveStreams, setLiveStreams] = useState<LiveStream[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToActiveStreams((streams) => {
+      setLiveStreams(streams);
+    });
+    return () => unsubscribe();
+  }, []);
   const [durationFilter, setDurationFilter] = useState<"short" | "medium" | "long" | "all">("all");
   const searchRef = useRef<HTMLDivElement>(null);
   const creatorsRef = useRef<HTMLDivElement>(null);
@@ -495,6 +507,43 @@ export default function ExplorePage() {
                   </div>
                   <p className="text-white text-sm font-bold">{trend.tag}</p>
                   <p className="text-vox-muted text-xs mt-1">{trend.views}</p>
+                </motion.button>
+              ))}
+            </div>
+          </motion.section>
+        )}
+
+        {/* ── LIVE NOW ── */}
+        {!isSearching && liveStreams.length > 0 && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+          >
+            <SectionHeader icon={Radio} title="Live Now" />
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-3 sm:-mx-4 px-3 sm:px-4">
+              {liveStreams.map((stream, i) => (
+                <motion.button
+                  key={stream.id}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3, delay: 0.15 + i * 0.05 }}
+                  onClick={() => router.push(`/live?watch=${stream.id}`)}
+                  className="shrink-0 w-40 sm:w-48 aspect-[3/4] rounded-2xl overflow-hidden relative touch-feedback card-hover text-left"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-b from-vox-purple/30 via-vox-pink/20 to-black/80" />
+                  <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-vox-danger/90 rounded-full px-2 py-0.5">
+                    <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                    <span className="text-[10px] font-bold text-white">LIVE</span>
+                  </div>
+                  <div className="absolute bottom-0 inset-x-0 p-3 space-y-1">
+                    <p className="text-sm font-bold text-white truncate leading-tight">{stream.title}</p>
+                    <p className="text-[10px] text-vox-muted">{stream.hostName}</p>
+                    <div className="flex items-center gap-1 text-[10px] text-white/70">
+                      <Eye className="w-3 h-3" />
+                      <span>{stream.viewers.toLocaleString()}</span>
+                    </div>
+                  </div>
                 </motion.button>
               ))}
             </div>
