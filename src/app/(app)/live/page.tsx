@@ -2038,6 +2038,7 @@ export default function LivePage() {
   const [hostStream, setHostStream] = useState<LiveStream | null>(null);
   const [hostMediaStream, setHostMediaStream] = useState<MediaStream | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [streamError, setStreamError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -2050,9 +2051,21 @@ export default function LivePage() {
     setAuctions(getLiveAuctions());
 
     // Real-time subscription to active live streams (Firebase or localStorage)
-    const unsubscribe = subscribeToActiveStreams((activeStreams) => {
-      setStreams(activeStreams);
-    });
+    const unsubscribe = subscribeToActiveStreams(
+      (activeStreams) => {
+        setStreams(activeStreams);
+        setStreamError(null);
+      },
+      (error) => {
+        if (error.message?.toLowerCase().includes("requires an index")) {
+          setStreamError("index");
+        } else if (error.message?.toLowerCase().includes("configuration_not_found")) {
+          setStreamError("auth");
+        } else {
+          setStreamError("unknown");
+        }
+      },
+    );
 
     // Deep link: /live?watch=<streamId> opens that stream directly
     if (typeof window !== "undefined") {
@@ -2349,7 +2362,33 @@ export default function LivePage() {
           {streams.length > 0 && <span className="text-xs text-vox-muted">{streams.length} streams</span>}
         </div>
 
-          {searchedStreams.length === 0 ? (
+        {streamError === "index" && (
+          <div className="glass rounded-2xl p-4 text-center mb-4 border border-vox-danger/30">
+            <Radio className="w-6 h-6 text-vox-danger mx-auto mb-2" />
+            <p className="text-white font-semibold text-sm mb-1">Live streams need a Firestore index</p>
+            <p className="text-vox-muted text-xs mb-3">Click below to create it, then refresh this page.</p>
+            <a
+              href="https://console.firebase.google.com/v1/r/project/voxel-dbe93/firestore/indexes?create_composite=Ck9wcm9qZWN0cy92b3hlbC1kYmU5My9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvbGl2ZVN0cmVhbXMvaW5kZXhlcy9fEAEaCgoGYWN0aXZlEAEaDQoJc3RhcnRlZEF0EAEaDAoIX19uYW1lX18QAQ"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block bg-vox-danger/20 text-vox-danger rounded-xl px-4 py-2 text-xs font-bold touch-feedback"
+            >
+              Create Firestore Index
+            </a>
+          </div>
+        )}
+
+        {streamError === "auth" && (
+          <div className="glass rounded-2xl p-4 text-center mb-4 border border-vox-orange/30">
+            <Radio className="w-6 h-6 text-vox-orange mx-auto mb-2" />
+            <p className="text-white font-semibold text-sm mb-1">Firebase Auth not configured for this domain</p>
+            <p className="text-vox-muted text-xs mb-3">
+              Add <code className="text-white">vox-web-six.vercel.app</code> to Firebase Auth authorized domains.
+            </p>
+          </div>
+        )}
+
+          {searchedStreams.length === 0 && !streamError ? (
             <div className="glass rounded-3xl p-8 text-center">
               <Search className="w-12 h-12 text-vox-muted mx-auto mb-3" />
               <p className="text-white font-semibold">{searchQuery ? "No streams found" : "No live streams right now"}</p>

@@ -869,7 +869,10 @@ export async function endLiveStream(streamId: string): Promise<void> {
 }
 
 /** Subscribe to active live streams in real time */
-export function subscribeToActiveStreams(callback: (streams: LiveStream[]) => void): Unsubscribe | (() => void) {
+export function subscribeToActiveStreams(
+  callback: (streams: LiveStream[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe | (() => void) {
   if (USE_FIREBASE && db) {
     try {
       // Single where clause to avoid composite index requirement.
@@ -902,6 +905,7 @@ export function subscribeToActiveStreams(callback: (streams: LiveStream[]) => vo
         callback(streams.sort((a, b) => b.viewers - a.viewers));
       }, (error) => {
         console.error("Firestore live streams subscription error:", error);
+        if (onError) onError(error as Error);
       });
     } catch (err) {
       console.error("Firestore live streams setup failed:", err);
