@@ -15,14 +15,14 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
-  getNotifications,
+  subscribeToNotifications,
   markNotificationRead,
   markAllNotificationsRead,
   clearNotifications,
   toggleFollow,
-  isFollowing,
-  type AppNotification,
-} from "@/lib/content-store";
+  getFollowing,
+  type VoxNotification,
+} from "@/lib/firebase-store";
 
 const iconMap = {
   like: { icon: Heart, color: "text-pink-400", bg: "bg-pink-400/15" },
@@ -32,6 +32,8 @@ const iconMap = {
   mention: { icon: MessageCircle, color: "text-orange-400", bg: "bg-orange-400/15" },
   system: { icon: Bell, color: "text-green-400", bg: "bg-green-400/15" },
   live: { icon: Video, color: "text-red-400", bg: "bg-red-400/15" },
+  message: { icon: MessageCircle, color: "text-cyan-400", bg: "bg-cyan-400/15" },
+  purchase: { icon: Gift, color: "text-purple-400", bg: "bg-purple-400/15" },
 };
 
 const tabs = ["All", "Likes", "Comments", "Follows", "Live"];
@@ -40,47 +42,42 @@ export default function NotificationsPage() {
   const router = useRouter();
   const { currentUser, hydrated } = useAuth();
   const [activeTab, setActiveTab] = useState("All");
-  const [notifs, setNotifs] = useState<AppNotification[]>([]);
+  const [notifs, setNotifs] = useState<VoxNotification[]>([]);
   const [followedBack, setFollowedBack] = useState<Set<string>>(new Set());
   const [allReadToast, setAllReadToast] = useState(false);
 
   useEffect(() => {
-    if (!hydrated) return;
-    if (!currentUser) {
-      router.push("/auth");
-      return;
-    }
-    setNotifs(getNotifications(currentUser.username));
-    // Load existing follow status
-    const followed = new Set<string>();
-    // Check who we already follow
-    setFollowedBack(followed);
-  }, [hydrated, currentUser, router]);
+    if (!hydrated || !currentUser) return;
+    const unsubscribe = subscribeToNotifications(currentUser.username, (items) => {
+      setNotifs(items);
+    });
+    return () => unsubscribe();
+  }, [hydrated, currentUser]);
 
-  const refreshNotifs = () => {
-    if (currentUser) setNotifs(getNotifications(currentUser.username));
-  };
+  useEffect(() => {
+    if (!currentUser) return;
+    getFollowing(currentUser.username).then((list) => {
+      setFollowedBack(new Set(list));
+    });
+  }, [currentUser]);
 
   const unreadCount = notifs.filter((n) => !n.read).length;
 
-  const handleMarkAllRead = () => {
+  const handleMarkAllRead = async () => {
     if (!currentUser) return;
-    markAllNotificationsRead(currentUser.username);
-    refreshNotifs();
+    await markAllNotificationsRead(currentUser.username);
     setAllReadToast(true);
     setTimeout(() => setAllReadToast(false), 2500);
   };
 
-  const handleClearAll = () => {
+  const handleClearAll = async () => {
     if (!currentUser) return;
-    clearNotifications(currentUser.username);
-    refreshNotifs();
+    await clearNotifications(currentUser.username);
   };
 
-  const handleCardClick = (notif: AppNotification) => {
-    if (currentUser) {
-      markNotificationRead(currentUser.username, notif.id);
-      refreshNotifs();
+  const handleCardClick = (notif: VoxNotification) => {
+    if (currentUser && notif.id) {
+      markNotificationRead(notif.id);
     }
     switch (notif.type) {
       case "like":
@@ -102,17 +99,16 @@ export default function NotificationsPage() {
     }
   };
 
-  const handleFollowBack = (e: React.MouseEvent, notif: AppNotification) => {
+  const handleFollowBack = async (e: React.MouseEvent, notif: VoxNotification) => {
     e.stopPropagation();
-    if (currentUser) {
-      toggleFollow(notif.fromUsername);
-      setFollowedBack((prev) => {
-        const s = new Set(prev);
-        if (s.has(notif.fromUsername)) s.delete(notif.fromUsername);
-        else s.add(notif.fromUsername);
-        return s;
-      });
-    }
+    if (!currentUser) return;
+    const newState = await toggleFollow(currentUser.username, notif.fromUsername);
+    setFollowedBack((prev) => {
+      const s = new Set(prev);
+      if (newState) s.add(notif.fromUsername);
+      else s.delete(notif.fromUsername);
+      return s;
+    });
   };
 
   const filteredNotifs = activeTab === "All"
@@ -224,7 +220,7 @@ export default function NotificationsPage() {
             {filteredNotifs.map((notif, i) => {
               const iconInfo = iconMap[notif.type] || iconMap.system;
               const Icon = iconInfo.icon;
-              const alreadyFollowing = followedBack.has(notif.fromUsername) || isFollowing(notif.fromUsername);
+              const alreadyFollowing = followedBack.has(notif.fromUsername);
 
               return (
                 <motion.div

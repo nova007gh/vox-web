@@ -22,6 +22,7 @@ import {
   arrayUnion,
   arrayRemove,
   serverTimestamp,
+  writeBatch,
   type Unsubscribe,
 } from "firebase/firestore";
 import { db, isFirebaseConfigured, ensureAuth, auth } from "./firebase";
@@ -1226,13 +1227,14 @@ export async function getFollowers(targetUsername: string): Promise<string[]> {
 
 export interface VoxNotification {
   id?: string;
-  type: "follow" | "like" | "comment" | "live" | "message" | "gift" | "purchase";
+  type: "follow" | "like" | "comment" | "live" | "message" | "gift" | "purchase" | "mention" | "system";
   fromUsername: string;
   fromName: string;
   fromAvatar: string;
   toUsername: string;
   message: string;
   detail?: string;
+  postId?: string;
   read: boolean;
   createdAt: number;
 }
@@ -1296,6 +1298,39 @@ export async function markNotificationRead(notificationId: string): Promise<void
     await updateDoc(doc(db, "notifications", notificationId), { read: true });
   } catch (err) {
     console.error("Firebase markNotificationRead error:", err);
+  }
+}
+
+/** Mark all of a user's notifications as read. */
+export async function markAllNotificationsRead(username: string): Promise<void> {
+  if (!USE_FIREBASE || !db) return;
+  try {
+    const q = query(collection(db, "notifications"), where("toUsername", "==", username.trim()));
+    const snap = await getDocs(q);
+    if (snap.empty) return;
+    const batch = writeBatch(db);
+    snap.forEach((d) => {
+      const data = d.data();
+      if (data.read === false) batch.update(d.ref, { read: true });
+    });
+    await batch.commit();
+  } catch (err) {
+    console.error("Firebase markAllNotificationsRead error:", err);
+  }
+}
+
+/** Delete all of a user's notifications. */
+export async function clearNotifications(username: string): Promise<void> {
+  if (!USE_FIREBASE || !db) return;
+  try {
+    const q = query(collection(db, "notifications"), where("toUsername", "==", username.trim()));
+    const snap = await getDocs(q);
+    if (snap.empty) return;
+    const batch = writeBatch(db);
+    snap.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  } catch (err) {
+    console.error("Firebase clearNotifications error:", err);
   }
 }
 
