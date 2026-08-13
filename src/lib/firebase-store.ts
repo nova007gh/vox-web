@@ -1360,11 +1360,13 @@ export async function requestToJoinLive(
   try {
     const q = query(
       collection(db, "liveRequests"),
-      where("streamId", "==", streamId),
-      where("requesterUsername", "==", requester.username.trim())
+      where("streamId", "==", streamId)
     );
     const existing = await getDocs(q);
-    if (!existing.empty) return { error: "You already requested to join this live." };
+    const already = existing.docs.find(
+      (d) => d.data().requesterUsername === requester.username.trim()
+    );
+    if (already) return { error: "You already requested to join this live." };
 
     const docRef = await addDoc(collection(db, "liveRequests"), {
       streamId,
@@ -1438,12 +1440,12 @@ export async function getMyJoinRequestStatus(
   try {
     const q = query(
       collection(db, "liveRequests"),
-      where("streamId", "==", streamId),
-      where("requesterUsername", "==", username.trim())
+      where("streamId", "==", streamId)
     );
     const snap = await getDocs(q);
-    if (snap.empty) return null;
-    const d = snap.docs[0];
+    const match = snap.docs.find((d) => d.data().requesterUsername === username.trim());
+    if (!match) return null;
+    const d = match;
     const data = d.data();
     return {
       id: d.id,
