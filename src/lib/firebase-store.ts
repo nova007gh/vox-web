@@ -1337,6 +1337,131 @@ export async function clearNotifications(username: string): Promise<void> {
   }
 }
 
+/* ─────────────── LIVE JOIN REQUESTS ─────────────── */
+
+export interface LiveJoinRequest {
+  id?: string;
+  streamId: string;
+  streamHost: string;
+  requesterUid: string;
+  requesterUsername: string;
+  requesterName: string;
+  requesterAvatar: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: number;
+}
+
+export async function requestToJoinLive(
+  streamId: string,
+  streamHost: string,
+  requester: { uid: string; username: string; name: string; avatar: string }
+): Promise<string | { error: string }> {
+  if (!USE_FIREBASE || !db) return { error: "Firebase not configured" };
+  try {
+    const q = query(
+      collection(db, "liveRequests"),
+      where("streamId", "==", streamId),
+      where("requesterUsername", "==", requester.username.trim())
+    );
+    const existing = await getDocs(q);
+    if (!existing.empty) return { error: "You already requested to join this live." };
+
+    const docRef = await addDoc(collection(db, "liveRequests"), {
+      streamId,
+      streamHost: streamHost.trim(),
+      requesterUid: requester.uid,
+      requesterUsername: requester.username.trim(),
+      requesterName: requester.name,
+      requesterAvatar: requester.avatar || "",
+      status: "pending",
+      createdAt: Date.now(),
+    });
+    return docRef.id;
+  } catch (err) {
+    console.error("requestToJoinLive error:", err);
+    return { error: "Failed to send join request." };
+  }
+}
+
+export function subscribeToJoinRequests(
+  streamHost: string,
+  callback: (requests: LiveJoinRequest[]) => void
+): () => void {
+  if (!USE_FIREBASE || !db) {
+    callback([]);
+    return () => {};
+  }
+  const q = query(
+    collection(db, "liveRequests"),
+    where("streamHost", "==", streamHost.trim())
+  );
+  return onSnapshot(q, (snap) => {
+    const requests: LiveJoinRequest[] = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      requests.push({
+        id: d.id,
+        streamId: data.streamId,
+        streamHost: data.streamHost,
+        requesterUid: data.requesterUid,
+        requesterUsername: data.requesterUsername,
+        requesterName: data.requesterName,
+        requesterAvatar: data.requesterAvatar,
+        status: data.status,
+        createdAt: data.createdAt,
+      });
+    });
+    callback(requests.filter((r) => r.status === "pending"));
+  }, (err) => {
+    console.error("subscribeToJoinRequests error:", err);
+    callback([]);
+  });
+}
+
+export async function updateJoinRequestStatus(
+  requestId: string,
+  status: "approved" | "rejected"
+): Promise<void> {
+  if (!USE_FIREBASE || !db) return;
+  try {
+    await updateDoc(doc(db, "liveRequests", requestId), { status });
+  } catch (err) {
+    console.error("updateJoinRequestStatus error:", err);
+  }
+}
+
+export async function getMyJoinRequestStatus(
+  streamId: string,
+  username: string
+): Promise<LiveJoinRequest | null> {
+  if (!USE_FIREBASE || !db) return null;
+  try {
+    const q = query(
+      collection(db, "liveRequests"),
+      where("streamId", "==", streamId),
+      where("requesterUsername", "==", username.trim())
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const d = snap.docs[0];
+    const data = d.data();
+    return {
+      id: d.id,
+      streamId: data.streamId,
+      streamHost: data.streamHost,
+      requesterUid: data.requesterUid,
+      requesterUsername: data.requesterUsername,
+      requesterName: data.requesterName,
+      requesterAvatar: data.requesterAvatar,
+      status: data.status,
+      createdAt: data.createdAt,
+    };
+  } catch (err) {
+    console.error("getMyJoinRequestStatus error:", err);
+    return null;
+  }
+}
+
 export function subscribeToAuth(callback: (user: FirebaseUser | null) => void): () => void {
   if (!auth) {
     callback(null);

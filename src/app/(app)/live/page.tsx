@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type PanInfo } from "framer-motion";
 import {
   Radio,
   Eye,
@@ -47,7 +47,12 @@ import {
   subscribeToActiveStreams,
   getFollowers,
   addNotification,
+  requestToJoinLive,
+  subscribeToJoinRequests,
+  updateJoinRequestStatus,
+  getMyJoinRequestStatus,
   type LiveStream,
+  type LiveJoinRequest,
 } from "@/lib/firebase-store";
 import {
   seedLiveDemoData,
@@ -503,7 +508,23 @@ function BidModal({ auction, onClose, onBid }: { auction: LiveAuction; onClose: 
 
 /* ─────────────────────────── LIVE STREAM VIEWER ─────────────────────────── */
 
-function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => void }) {
+function StreamViewer({
+  stream,
+  onClose,
+  streams = [],
+  onNext,
+  onPrev,
+  hasNext,
+  hasPrev,
+}: {
+  stream: LiveStream;
+  onClose: () => void;
+  streams?: LiveStream[];
+  onNext?: () => void;
+  onPrev?: () => void;
+  hasNext?: boolean;
+  hasPrev?: boolean;
+}) {
   const { currentUser } = useAuth();
   const [comments, setComments] = useState<LiveComment[]>([]);
   const [commentText, setCommentText] = useState("");
@@ -542,6 +563,10 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
   const streamIdRef = useRef(stream.id);
   const giftComboRef = useRef<{ icon: string; name: string; count: number; nonce: number } | null>(null);
   const comboTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showLiveNow, setShowLiveNow] = useState(false);
+  const [showChatPanel, setShowChatPanel] = useState(false);
+  const [joinRequest, setJoinRequest] = useState<LiveJoinRequest | null>(null);
+  const [joinRequestLoading, setJoinRequestLoading] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -753,6 +778,53 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
     return false;
   };
 
+  const handlePan = (info: PanInfo) => {
+    const threshold = 100;
+    if (info.offset.x < -threshold) {
+      setShowLiveNow(true);
+      setShowChatPanel(false);
+    } else if (info.offset.x > threshold) {
+      setShowChatPanel(true);
+      setShowLiveNow(false);
+    } else if (info.offset.y < -threshold && hasNext) {
+      onNext?.();
+    } else if (info.offset.y > threshold && hasPrev) {
+      onPrev?.();
+    }
+  };
+
+  const handleRequestToJoin = async () => {
+    if (!currentUser) {
+      showToast("Sign in to request to join");
+      return;
+    }
+    if (joinRequestLoading) return;
+    setJoinRequestLoading(true);
+    const res = await requestToJoinLive(stream.id, stream.hostUsername, {
+      uid: currentUser.username,
+      username: currentUser.username,
+      name: currentUser.name,
+      avatar: currentUser.avatar || "",
+    });
+    setJoinRequestLoading(false);
+    if (typeof res === "string") {
+      showToast("Join request sent!");
+      const updated = await getMyJoinRequestStatus(stream.id, currentUser.username);
+      setJoinRequest(updated);
+    } else if (res && typeof res === "object" && "error" in res) {
+      showToast(res.error);
+    } else {
+      showToast("Failed to send join request");
+    }
+  };
+
+  useEffect(() => {
+    if (!currentUser || currentUser.username === stream.hostUsername) return;
+    getMyJoinRequestStatus(stream.id, currentUser.username).then((req) => {
+      setJoinRequest(req);
+    });
+  }, [currentUser, stream.id, stream.hostUsername]);
+
   const elapsed = Math.floor((Date.now() - stream.startedAt) / 1000);
 
   return (
@@ -760,6 +832,7 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
+      onPanEnd={(e, info) => handlePan(info)}
       className="fixed inset-0 z-[70] bg-black flex flex-col"
     >
       <div className="relative flex-1 bg-gradient-to-br from-vox-bg via-black to-vox-bg flex items-center justify-center overflow-hidden">
@@ -923,6 +996,13 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Swipe hint */}
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20">
+          <p className="text-[10px] text-white/70 bg-black/30 backdrop-blur-md rounded-full px-3 py-1 text-center whitespace-nowrap">
+            Swipe left for live streams, right for chat, up/down to switch
+          </p>
         </div>
 
         {/* Shopping/Auction tabs */}
@@ -1099,12 +1179,113 @@ function StreamViewer({ stream, onClose }: { stream: LiveStream; onClose: () => 
             </div>
             <span className="text-[9px] font-medium text-white/80">Top</span>
           </button>
+          {currentUser?.username !== stream.hostUsername && (
+            <button onClick={handleRequestToJoin} disabled={joinRequestLoading} className="touch-feedback flex flex-col items-center gap-0.5">
+              <div className={`w-11 h-11 rounded-full backdrop-blur-md flex items-center justify-center border ${joinRequest ? (joinRequest.status === "approved" ? "bg-vox-green/60 border-vox-green" : joinRequest.status === "pending" ? "bg-vox-orange/60 border-vox-orange" : "bg-vox-danger/60 border-vox-danger") : "bg-black/30 border-white/10"}`}>
+                {joinRequestLoading ? <Loader2 className="w-5 h-5 text-white animate-spin" /> : <User className="w-5 h-5 text-white" />}
+              </div>
+              <span className="text-[9px] font-medium text-white/80">
+                {joinRequestLoading ? "Sending..." : joinRequest ? (joinRequest.status === "approved" ? "Approved" : joinRequest.status === "pending" ? "Pending" : "Rejected") : "Join"}
+              </span>
+            </button>
+          )}
           <button onClick={handleShare} className="touch-feedback flex flex-col items-center gap-0.5">
             <div className="w-11 h-11 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center border border-white/10">
               <Share2 className="w-5 h-5 text-white" />
             </div>
           </button>
         </div>
+
+        {/* Live Now panel */}
+        <AnimatePresence>
+          {showLiveNow && (
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "tween", duration: 0.25 }}
+              className="absolute top-0 right-0 bottom-0 w-[70%] max-w-xs z-40 bg-vox-bg/95 backdrop-blur-xl border-l border-white/10 p-4 flex flex-col"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm font-bold text-white">Live Now</span>
+                <button onClick={() => setShowLiveNow(false)} className="w-7 h-7 rounded-full glass flex items-center justify-center touch-feedback">
+                  <X className="w-3.5 h-3.5 text-vox-muted" />
+                </button>
+              </div>
+              <div className="overflow-y-auto space-y-2 scrollbar-hide">
+                {streams.length === 0 && <p className="text-xs text-vox-muted">No active streams</p>}
+                {streams.map((s) => (
+                  <div key={s.id} className="flex items-center gap-2 p-2 glass rounded-xl" onClick={() => setShowLiveNow(false)}>
+                    {s.hostAvatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={s.hostAvatar} alt={s.hostName} className="w-9 h-9 rounded-full object-cover ring-1 ring-white/20" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink flex items-center justify-center">
+                        <Radio className="w-4 h-4 text-white" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-white truncate">{s.hostName}</p>
+                      <p className="text-[9px] text-vox-muted truncate">{s.title}</p>
+                    </div>
+                    {s.id === stream.id && <span className="text-[9px] text-vox-pink">Watching</span>}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Chat panel */}
+        <AnimatePresence>
+          {showChatPanel && (
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ type: "tween", duration: 0.25 }}
+              className="absolute top-0 left-0 bottom-0 w-[75%] max-w-sm z-40 bg-vox-bg/95 backdrop-blur-xl border-r border-white/10 p-4 flex flex-col"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm font-bold text-white">Comments</span>
+                <button onClick={() => setShowChatPanel(false)} className="w-7 h-7 rounded-full glass flex items-center justify-center touch-feedback">
+                  <X className="w-3.5 h-3.5 text-vox-muted" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-2 scrollbar-hide">
+                {comments.length === 0 && <p className="text-xs text-vox-muted">No comments yet</p>}
+                {comments.map((c) => (
+                  <div key={c.id} className="flex items-start gap-2">
+                    <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-sm rounded-full px-2.5 py-1 max-w-[95%]">
+                      {c.isGift ? (
+                        <span className="text-lg">{c.giftIcon}</span>
+                      ) : (
+                        <span className="text-xs font-bold text-vox-cyan shrink-0">{c.user}:</span>
+                      )}
+                      <span className="text-xs text-white break-words">{c.text}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendComment()}
+                  placeholder="Say something..."
+                  className="flex-1 bg-black/40 backdrop-blur-md text-white text-sm rounded-full px-4 py-2.5 outline-none border border-white/10 placeholder:text-white/40"
+                />
+                <button
+                  onClick={handleSendComment}
+                  disabled={!commentText.trim()}
+                  className="w-10 h-10 rounded-full btn-gradient flex items-center justify-center touch-feedback disabled:opacity-40"
+                >
+                  <Send className="w-4 h-4 text-white" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Top gifters overlay */}
         <AnimatePresence>
@@ -1302,6 +1483,8 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
   const [floatingHearts, setFloatingHearts] = useState<{ id: number; left: number; size: number }[]>([]);
   const [giftBurst, setGiftBurst] = useState<{ icon: string; name: string; cost: number; nonce: number } | null>(null);
   const [viewerPulse, setViewerPulse] = useState(false);
+  const [joinRequests, setJoinRequests] = useState<LiveJoinRequest[]>([]);
+  const [showJoinRequests, setShowJoinRequests] = useState(false);
   const commentRef = useRef<HTMLDivElement>(null);
   const streamIdRef = useRef(stream.id);
   const didInitRef = useRef(false);
@@ -1460,6 +1643,15 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
       return () => clearTimeout(t);
     }
   }, [viewerPulse]);
+
+  // Join requests subscription
+  useEffect(() => {
+    if (!currentUser) return;
+    const unsubscribe = subscribeToJoinRequests(stream.hostUsername, (requests) => {
+      setJoinRequests(requests);
+    });
+    return () => unsubscribe();
+  }, [currentUser, stream.hostUsername]);
 
   // Simulated comments + hearts + gifts
   useEffect(() => {
@@ -1763,6 +1955,17 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
                 <BarChart3 className={`w-4 h-4 ${showStats ? "text-vox-cyan" : "text-white"}`} />
               </button>
               <button
+                onClick={() => setShowJoinRequests(!showJoinRequests)}
+                className="relative w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center touch-feedback border border-white/10"
+              >
+                <Users className={`w-4 h-4 ${showJoinRequests ? "text-vox-cyan" : "text-white"}`} />
+                {joinRequests.length > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-vox-danger rounded-full text-[8px] font-bold text-white flex items-center justify-center">
+                    {joinRequests.length}
+                  </span>
+                )}
+              </button>
+              <button
                 onClick={() => setShowEndConfirm(true)}
                 className="flex items-center gap-1.5 bg-vox-danger/90 backdrop-blur-md rounded-full px-3 py-1.5 touch-feedback"
               >
@@ -1822,6 +2025,61 @@ function LiveHost({ stream, initialStream, onEnd }: { stream: LiveStream; initia
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Join requests panel */}
+        <AnimatePresence>
+          {showJoinRequests && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              className="absolute top-16 left-3 right-3 z-30 glass-strong rounded-2xl p-4 border border-white/10 max-h-[50%] overflow-y-auto scrollbar-hide"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold tracking-widest text-vox-cyan">JOIN REQUESTS</span>
+                <button onClick={() => setShowJoinRequests(false)} className="w-6 h-6 rounded-full glass flex items-center justify-center">
+                  <X className="w-3 h-3 text-vox-muted" />
+                </button>
+              </div>
+              {joinRequests.length === 0 ? (
+                <p className="text-xs text-vox-muted">No pending join requests</p>
+              ) : (
+                <div className="space-y-2">
+                  {joinRequests.map((req) => (
+                    <div key={req.id} className="glass rounded-xl p-2.5 flex items-center gap-2">
+                      {req.requesterAvatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={req.requesterAvatar} alt={req.requesterName} className="w-9 h-9 rounded-full object-cover ring-1 ring-white/20" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-vox-purple to-vox-pink flex items-center justify-center text-xs font-bold text-white">
+                          {req.requesterName[0]}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-white truncate">{req.requesterName}</p>
+                        <p className="text-[9px] text-vox-muted">@{req.requesterUsername}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => req.id && updateJoinRequestStatus(req.id, "approved")}
+                          className="bg-vox-green/80 rounded-full px-2.5 py-1 text-[9px] font-bold text-white touch-feedback"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => req.id && updateJoinRequestStatus(req.id, "rejected")}
+                          className="bg-vox-danger/80 rounded-full px-2.5 py-1 text-[9px] font-bold text-white touch-feedback"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </motion.div>
@@ -2036,6 +2294,7 @@ export default function LivePage() {
   const [auctions, setAuctions] = useState<LiveAuction[]>([]);
   const [showGoLiveModal, setShowGoLiveModal] = useState(false);
   const [activeStream, setActiveStream] = useState<LiveStream | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [hostStream, setHostStream] = useState<LiveStream | null>(null);
   const [hostMediaStream, setHostMediaStream] = useState<MediaStream | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -2079,6 +2338,13 @@ export default function LivePage() {
     }
     return () => unsubscribe();
   }, [hydrated, currentUser, router]);
+
+  useEffect(() => {
+    if (activeStream) {
+      const idx = streams.findIndex((s) => s.id === activeStream.id);
+      setActiveIndex(idx >= 0 ? idx : 0);
+    }
+  }, [activeStream, streams]);
 
   const handleGoLive = async (title: string, category: string, mediaStream: MediaStream | null) => {
     if (!currentUser) return;
@@ -2141,7 +2407,27 @@ export default function LivePage() {
   }
 
   if (activeStream) {
-    return <StreamViewer stream={activeStream} onClose={() => setActiveStream(null)} />;
+    const hasNext = streams.length > 1;
+    const hasPrev = streams.length > 1;
+    return (
+      <StreamViewer
+        stream={activeStream}
+        onClose={() => setActiveStream(null)}
+        streams={streams}
+        onNext={() => {
+          const next = (activeIndex + 1) % streams.length;
+          setActiveIndex(next);
+          setActiveStream(streams[next]);
+        }}
+        onPrev={() => {
+          const prev = (activeIndex - 1 + streams.length) % streams.length;
+          setActiveIndex(prev);
+          setActiveStream(streams[prev]);
+        }}
+        hasNext={hasNext}
+        hasPrev={hasPrev}
+      />
+    );
   }
 
   return (
