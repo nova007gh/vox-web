@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import FeedPosts from "../FeedPosts";
 import { subscribeToActiveStreams, type LiveStream } from "@/lib/firebase-store";
-import { useAuth } from "@/lib/auth-context";
 import {
   Search,
   SlidersHorizontal,
@@ -121,7 +120,6 @@ function SectionHeader({
 
 export default function ExplorePage() {
   const router = useRouter();
-  const { currentUser, hydrated } = useAuth();
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [followedCreators, setFollowedCreators] = useState<string[]>([]);

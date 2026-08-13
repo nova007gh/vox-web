@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 /* ─────────────────────────────────────────────────────────────
    FIREBASE STORE - Hybrid service layer
    Uses Firebase Firestore + Storage when configured,
