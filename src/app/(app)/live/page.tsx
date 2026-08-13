@@ -781,11 +781,11 @@ function StreamViewer({
   const handlePan = (info: PanInfo) => {
     const threshold = 100;
     if (info.offset.x < -threshold) {
-      setShowLiveNow(true);
-      setShowChatPanel(false);
-    } else if (info.offset.x > threshold) {
       setShowChatPanel(true);
       setShowLiveNow(false);
+    } else if (info.offset.x > threshold) {
+      setShowLiveNow(true);
+      setShowChatPanel(false);
     } else if (info.offset.y < -threshold && hasNext) {
       onNext?.();
     } else if (info.offset.y > threshold && hasPrev) {
@@ -1001,7 +1001,7 @@ function StreamViewer({
         {/* Swipe hint */}
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20">
           <p className="text-[10px] text-white/70 bg-black/30 backdrop-blur-md rounded-full px-3 py-1 text-center whitespace-nowrap">
-            Swipe left for live streams, right for chat, up/down to switch
+            Swipe left for messages, right for live streams, up/down to switch
           </p>
         </div>
 
@@ -1200,11 +1200,11 @@ function StreamViewer({
         <AnimatePresence>
           {showLiveNow && (
             <motion.div
-              initial={{ x: "100%" }}
+              initial={{ x: "-100%" }}
               animate={{ x: 0 }}
-              exit={{ x: "100%" }}
+              exit={{ x: "-100%" }}
               transition={{ type: "tween", duration: 0.25 }}
-              className="absolute top-0 right-0 bottom-0 w-[70%] max-w-xs z-40 bg-vox-bg/95 backdrop-blur-xl border-l border-white/10 p-4 flex flex-col"
+              className="absolute top-0 left-0 bottom-0 w-[70%] max-w-xs z-40 bg-vox-bg/95 backdrop-blur-xl border-r border-white/10 p-4 flex flex-col"
             >
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm font-bold text-white">Live Now</span>
@@ -1240,11 +1240,11 @@ function StreamViewer({
         <AnimatePresence>
           {showChatPanel && (
             <motion.div
-              initial={{ x: "-100%" }}
+              initial={{ x: "100%" }}
               animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
+              exit={{ x: "100%" }}
               transition={{ type: "tween", duration: 0.25 }}
-              className="absolute top-0 left-0 bottom-0 w-[75%] max-w-sm z-40 bg-vox-bg/95 backdrop-blur-xl border-r border-white/10 p-4 flex flex-col"
+              className="absolute top-0 right-0 bottom-0 w-[75%] max-w-sm z-40 bg-vox-bg/95 backdrop-blur-xl border-l border-white/10 p-4 flex flex-col"
             >
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm font-bold text-white">Comments</span>
