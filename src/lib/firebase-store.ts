@@ -25,6 +25,7 @@ import {
   arrayRemove,
   serverTimestamp,
   writeBatch,
+  deleteField,
   type Unsubscribe,
 } from "firebase/firestore";
 import { db, isFirebaseConfigured, ensureAuth, auth } from "./firebase";
@@ -1345,6 +1346,32 @@ export function subscribeToAuth(callback: (user: FirebaseUser | null) => void): 
 }
 
 /* ─────────────── HELPERS ─────────────── */
+
+/** Remove any leftover plaintext passwords and fill missing timestamps
+ *  on all user documents. Call this once from an admin/migration tool. */
+export async function sanitizeStoredUserProfiles(): Promise<string[]> {
+  if (!USE_FIREBASE || !db) return [];
+  const changed: string[] = [];
+  try {
+    const snap = await getDocs(collection(db, "users"));
+    const now = Date.now();
+    for (const d of snap.docs) {
+      const data = d.data();
+      const updates: Record<string, unknown> = {};
+      if (data.password !== undefined) updates.password = deleteField();
+      if (data.createdAt === undefined) updates.createdAt = now;
+      if (data.updatedAt === undefined) updates.updatedAt = now;
+      if (Object.keys(updates).length > 0) {
+        await updateDoc(d.ref, updates);
+        changed.push(d.id);
+      }
+    }
+    return changed;
+  } catch (err) {
+    console.error("sanitizeStoredUserProfiles error:", err);
+    return [];
+  }
+}
 
 function getCurrentUserEmail(): string {
   try {
