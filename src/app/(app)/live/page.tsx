@@ -61,6 +61,8 @@ import {
 
 /* ─────────────────────────── DATA ─────────────────────────── */
 
+export const revalidate = 0;
+
 const categories = [
   { label: "All" },
   { label: "Music" },
